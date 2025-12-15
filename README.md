@@ -20,9 +20,9 @@ This repository provides tools and Frida scripts to analyze, intercept and forwa
 2. **Export and install the proxy’s CA certificate** on your iOS device, then enable full trust under *Settings --> General --> About --> Certificate Trust Settings*.  
 3. **Configure your iPhone’s Wi‑Fi proxy manually** to point to your machine’s IP and chosen port (e.g. `192.168.1.5:8889`).  
 4. **Run the proxy** in standard mode (`mitmproxy -p 8889`) or Burp with an “Invisible Proxy” listener.  
-5. **Use Frida hooks** to redirect Dart’s `connect()` calls to the proxy if the app ignores system proxy settings.  
+5. **Use Frida hooks** to redirect Dart’s `connect()` calls to the proxy (e.g. `frida -n YourApp -l intercept_dartio.js`)
 6. **Refresh the app** and watch requests appear in your proxy.  
-7. If traffic is still missing, check which networking stack the app uses (Dart:io, Cupertino/NSURLSession, NSURLConnection, WKWebView) and apply the corresponding hook.
+7. If traffic is still missing, check which networking stack the app uses by running any of the scripts within the [frida_detect_engine](frida_detect_engine) folder ([Dart:io](frida_detect_engine/check_dartio.js), [Cupertino/NSURLSession](frida_detect_engine/check_cupertino.js), [NSURLConnection](frida_detect_engine/check_nsurl.js), [WKWebView](frida_detect_engine/check_webview.js)) and apply the corresponding hook.
 
 ---
 
@@ -42,7 +42,7 @@ Flutter apps can use different networking stacks depending on the code path. The
 
 
 This repo includes several scripts to make reverse engineering of flutter APIs easier.
-| Engine    | Check Script                                                  | Intercept Script                             |
+| Engine    | Check what Engine Scripts                                     | Intercept Script                             |
 |-----------|---------------------------------------------------------------|----------------------------------------------|
 | Dart:io   | [check_dartio.js](frida_detect_engine/check_dartio.js)        | [intercept_dartio.js](intercept_dartio.js)   |
 | Cupertino | [check_cupertino.js](frida_detect_engine/check_cupertino.js)  | Coming soon!                                 |
