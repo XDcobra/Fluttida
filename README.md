@@ -66,7 +66,7 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 #### TLS, HTTP/2, Certificates, and Pinning
 - Direct TLS connections cannot be intercepted by a standard proxy.  
 - HTTP/2 and ALPN negotiation requires proper TLS termination.  
-- ATS and certificate pinning block interception unless bypassed.  
+- ATS and certificate pinning block interception unless bypassed (see [accept_all_certs.js](accept_all_certs.js) for a general ssl pinning bypass) 
 - IPv6 and QUIC/HTTP/3 introduce additional challenges.
 
 ---
