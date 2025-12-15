@@ -1,6 +1,19 @@
 # Fluttida – Intercepting Flutter App Traffic with Frida
 This repository provides tools and Frida scripts to analyze, intercept and forward network traffic from Flutter applications via Frida. Because Flutter often bypasses system proxy settings and uses custom networking stacks, standard proxy interception fails. The scripts here help identify which client (e.g. `dart:io`, `NSURLSession`, `NSURLConnection`, or `WKWebView`) is in use and redirect traffic through a proxy for effective reverse engineering.
 
+<div align="center">
+  <img src="docs/fluttida-banner.png" alt="Fluttida - Proxy Interception for Flutter Apps via Frida" width=60%" />
+
+  <p>
+    <img src="https://img.shields.io/badge/Flutter-3.x-blue?style=flat&logo=flutter" alt="Flutter Version" />
+    <img src="https://img.shields.io/badge/Frida-17.x-red?style=flat&logo=frida" alt="Frida Version" />
+    <img src="https://img.shields.io/badge/platform-iOS%20%7C%20Android-lightgrey" alt="Platform" />
+    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License" />
+    <img src="https://img.shields.io/badge/proxy-support%20via%20Frida-blue" alt="Proxy Support via Frida" />
+  </p>
+</div>
+
+
 ## Quick Start
 
 1. **Install mitmproxy or Burp Suite** on your analysis machine.  
