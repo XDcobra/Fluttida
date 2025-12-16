@@ -39,8 +39,7 @@ import Flutter
           let data = try NSURLConnection.sendSynchronousRequest(req, returning: &response)
 
           // For CFURLConnection creation: bridge to NSURLRequest
-          let nsReq = req as NSURLRequest
-          FluttidaCreateCFURLConnection(nsReq)
+          FluttidaCreateCFURLConnection(req)
 
           let httpResp = response as? HTTPURLResponse
           let status = httpResp?.statusCode ?? -1
