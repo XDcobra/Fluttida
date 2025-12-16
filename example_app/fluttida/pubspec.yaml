@@ -1,0 +1,25 @@
+name: fluttida
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_http: ^2.4.0
+  http: ^1.2.2
+  webview_flutter: ^4.10.0
+
+dependency_overrides:
+  objective_c: 9.1.0  # pinning this version due to a bug: https://github.com/dart-lang/native/issues/2835
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

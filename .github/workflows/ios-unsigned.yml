@@ -20,7 +20,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "stable"
+          channel: "stable"
           cache: true
 
       - name: Flutter doctor
@@ -50,8 +50,8 @@ jobs:
 
             runner_group = proj.main_group.find_subpath('Runner', true)
 
-            h_path = 'Runner/LegacyCFURLConnection.h'
-            m_path = 'Runner/LegacyCFURLConnection.m'
+            h_path = 'LegacyCFURLConnection.h'
+            m_path = 'LegacyCFURLConnection.m'
 
             proj.files.find { |f| f.path == h_path } || runner_group.new_file(h_path)
             m_ref = proj.files.find { |f| f.path == m_path } || runner_group.new_file(m_path)
