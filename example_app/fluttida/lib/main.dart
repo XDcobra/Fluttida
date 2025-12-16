@@ -78,7 +78,9 @@ class _HomeScreenState extends State<HomeScreen> {
     Future<void> step(String name, Future<RequestResult> Function() fn) async {
       try {
         final r = await fn();
-        final snippet = r.body.length > 260 ? '${r.body.substring(0, 260)}...' : r.body;
+        final snippet = r.body.length > 260
+            ? '${r.body.substring(0, 260)}...'
+            : r.body;
         results.add('[$name] Status: ${r.status}\n$snippet\n');
       } catch (e) {
         results.add('[$name] ERROR: $e\n');
@@ -91,12 +93,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
     await step('raw dart:io', _requestDartIoRaw);
     await step('package:http (default)', _requestHttpDefault);
-    await step('package:http via IOClient(explicit)', _requestHttpViaExplicitIoClient);
+    await step(
+      'package:http via IOClient(explicit)',
+      _requestHttpViaExplicitIoClient,
+    );
     await step('cupertino_http (NSURLSession)', _requestCupertinoDefault);
 
     if (Platform.isIOS) {
-      await step('package:http via CupertinoClient (NSURLSession)', _requestHttpViaCupertinoClient);
-      await step('legacy ios (NSURLConnection/CFURLConnection)', _requestLegacyIos);
+      await step(
+        'package:http via CupertinoClient (NSURLSession)',
+        _requestHttpViaCupertinoClient,
+      );
+      await step(
+        'legacy ios (NSURLConnection/CFURLConnection)',
+        _requestLegacyIos,
+      );
     } else {
       results.add('[package:http via CupertinoClient] SKIPPED (iOS only)\n');
       results.add('[legacy ios] SKIPPED (iOS only)\n');
@@ -120,7 +131,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final req = await client.getUrl(Uri.parse(_url));
     final resp = await req.close();
 
-    final bytes = await resp.fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk));
+    final bytes = await resp.fold<List<int>>(
+      <int>[],
+      (acc, chunk) => acc..addAll(chunk),
+    );
     final body = utf8.decode(bytes, allowMalformed: true);
 
     client.close(force: true);
@@ -144,7 +158,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // Useful to compare against default and to ensure the exact stack.
   // ---------------------------------------------------------------------------
   Future<RequestResult> _requestHttpViaExplicitIoClient() async {
-    final io = HttpClient()..userAgent = 'Fluttida/1.0 (package:http IOClient explicit)';
+    final io = HttpClient()
+      ..userAgent = 'Fluttida/1.0 (package:http IOClient explicit)';
     final client = IOClient(io);
 
     try {
@@ -186,7 +201,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final resp = await client.get(
         Uri.parse(_url),
-        headers: {'User-Agent': 'Fluttida/1.0 (package:http via CupertinoClient)'},
+        headers: {
+          'User-Agent': 'Fluttida/1.0 (package:http via CupertinoClient)',
+        },
       );
       return RequestResult(resp.statusCode, resp.body);
     } finally {
@@ -199,7 +216,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // ---------------------------------------------------------------------------
   Future<RequestResult> _requestLegacyIos() async {
     if (!Platform.isIOS) {
-      throw Exception('Legacy stack is iOS-only (NSURLConnection/CFURLConnection).');
+      throw Exception(
+        'Legacy stack is iOS-only (NSURLConnection/CFURLConnection).',
+      );
     }
 
     final map = await _legacyChannel.invokeMapMethod<String, dynamic>(
@@ -229,7 +248,11 @@ class _HomeScreenState extends State<HomeScreen> {
             if (!finished.isCompleted) finished.complete();
           },
           onWebResourceError: (err) {
-            if (!errors.isCompleted) errors.complete(err.description);
+            debugPrint("WV error: ${err.errorCode} ${err.description}");
+          },
+          onNavigationRequest: (req) {
+            debugPrint("WV nav: ${req.url}");
+            return NavigationDecision.navigate;
           },
         ),
       );
@@ -258,28 +281,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openWebViewScreen() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const WebViewScreen(url: _url)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const WebViewScreen(url: _url)));
   }
 
   @override
   Widget build(BuildContext context) {
     SizedBox btn(String text, VoidCallback onTap) => SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _loading ? null : onTap,
-            child: Text(text),
-          ),
-        );
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _loading ? null : onTap,
+        child: Text(text),
+      ),
+    );
 
     Widget section(String title) => Padding(
-          padding: const EdgeInsets.only(top: 10, bottom: 6),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(title, style: Theme.of(context).textTheme.titleSmall),
-          ),
-        );
+      padding: const EdgeInsets.only(top: 10, bottom: 6),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(title, style: Theme.of(context).textTheme.titleSmall),
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Fluttida – Network Stack Lab')),
@@ -290,14 +313,38 @@ class _HomeScreenState extends State<HomeScreen> {
             btn('Run all scenarios', _runAll),
 
             section('Dart / Flutter stacks'),
-            btn('1) RAW dart:io HttpClient', () => _run('raw dart:io', _requestDartIoRaw)),
-            btn('2) package:http (default)', () => _run('package:http default', _requestHttpDefault)),
-            btn('3) package:http via IOClient (explicit)', () => _run('package:http IOClient', _requestHttpViaExplicitIoClient)),
-            btn('4) cupertino_http (NSURLSession)', () => _run('cupertino_http', _requestCupertinoDefault)),
+            btn(
+              '1) RAW dart:io HttpClient',
+              () => _run('raw dart:io', _requestDartIoRaw),
+            ),
+            btn(
+              '2) package:http (default)',
+              () => _run('package:http default', _requestHttpDefault),
+            ),
+            btn(
+              '3) package:http via IOClient (explicit)',
+              () => _run(
+                'package:http IOClient',
+                _requestHttpViaExplicitIoClient,
+              ),
+            ),
+            btn(
+              '4) cupertino_http (NSURLSession)',
+              () => _run('cupertino_http', _requestCupertinoDefault),
+            ),
 
             section('iOS-specific stacks'),
-            btn('5) package:http via CupertinoClient (NSURLSession)', () => _run('http via CupertinoClient', _requestHttpViaCupertinoClient)),
-            btn('6) NSURLConnection/CFURLConnection (iOS)', () => _run('legacy ios', _requestLegacyIos)),
+            btn(
+              '5) package:http via CupertinoClient (NSURLSession)',
+              () => _run(
+                'http via CupertinoClient',
+                _requestHttpViaCupertinoClient,
+              ),
+            ),
+            btn(
+              '6) NSURLConnection/CFURLConnection (iOS)',
+              () => _run('legacy ios', _requestLegacyIos),
+            ),
 
             section('WebView stacks'),
             btn('7) WebView (open screen)', _openWebViewScreen),
