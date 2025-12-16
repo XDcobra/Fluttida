@@ -460,6 +460,16 @@ class _LabScreenState extends State<LabScreen> {
 
     final queue = stacks.where((s) => s.support().supported).toList();
     await ctrl.runSequential(queue: queue, runName: "Run All Supported");
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "Run finished — results are available in the 'Results' tab.",
+        ),
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   Future<void> _runSelected() async {
@@ -471,6 +481,16 @@ class _LabScreenState extends State<LabScreen> {
         .toList();
 
     await ctrl.runSequential(queue: queue, runName: "Run Selected");
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "Run finished — results are available in the 'Results' tab.",
+        ),
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -479,311 +499,321 @@ class _LabScreenState extends State<LabScreen> {
       animation: ctrl,
       builder: (context, _) {
         return DefaultTabController(
-          length: 2,
+          length: 3,
           child: Scaffold(
             appBar: AppBar(
               title: const Text("Fluttida – Network Stack Lab"),
               bottom: const TabBar(
                 tabs: [
+                  Tab(text: "Stack"),
                   Tab(text: "Results"),
                   Tab(text: "Logs"),
                 ],
               ),
             ),
-            body: Column(
+            body: TabBarView(
               children: [
-                // A) Config
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    children: [
-                      Row(
+                // STACK tab: Config + Stack list (no response pane)
+                Column(
+                  children: [
+                    // A) Config
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
                         children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _urlController,
-                              decoration: const InputDecoration(
-                                labelText: "URL",
-                                border: OutlineInputBorder(),
-                              ),
-                              enabled: !ctrl.isRunning,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          SizedBox(
-                            width: 110,
-                            child: DropdownButtonFormField<String>(
-                              value: _method,
-                              items: const [
-                                DropdownMenuItem(
-                                  value: "GET",
-                                  child: Text("GET"),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _urlController,
+                                  decoration: const InputDecoration(
+                                    labelText: "URL",
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  enabled: !ctrl.isRunning,
                                 ),
-                                DropdownMenuItem(
-                                  value: "POST",
-                                  child: Text("POST"),
-                                ),
-                                DropdownMenuItem(
-                                  value: "HEAD",
-                                  child: Text("HEAD"),
-                                ),
-                              ],
-                              onChanged: ctrl.isRunning
-                                  ? null
-                                  : (v) {
-                                      if (v != null)
-                                        setState(() => _method = v);
-                                    },
-                              decoration: const InputDecoration(
-                                labelText: "Method",
-                                border: OutlineInputBorder(),
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _bodyController,
-                              maxLines: 5,
-                              decoration: const InputDecoration(
-                                labelText: "Body (optional)",
-                                hintText: "Raw request body",
-                                border: OutlineInputBorder(),
-                              ),
-                              enabled: !ctrl.isRunning,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: TextField(
-                              controller: _headersController,
-                              maxLines: 5,
-                              decoration: const InputDecoration(
-                                labelText: "Headers",
-                                hintText:
-                                    "Either JSON map or lines: Key: Value",
-                                border: OutlineInputBorder(),
-                              ),
-                              enabled: !ctrl.isRunning,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          SizedBox(
-                            width: 140,
-                            child: TextField(
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: "Timeout (s)",
-                                border: OutlineInputBorder(),
-                              ),
-                              controller: TextEditingController(
-                                text: _timeoutSeconds.toString(),
-                              ),
-                              onChanged: (v) {
-                                final n = int.tryParse(v) ?? _timeoutSeconds;
-                                setState(() => _timeoutSeconds = n);
-                              },
-                              enabled: !ctrl.isRunning,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: ctrl.isRunning ? null : _runSelected,
-                              child: const Text("Run Selected (sequential)"),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: ctrl.isRunning
-                                  ? null
-                                  : _runAllSupported,
-                              child: const Text(
-                                "Run All Supported (sequential)",
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          OutlinedButton(
-                            onPressed: ctrl.isRunning ? null : ctrl.clearOutput,
-                            child: const Text("Clear"),
-                          ),
-                        ],
-                      ),
-                      if (ctrl.isRunning && ctrl.currentStackId != null) ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "Running: ${ctrl.currentStackId}",
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
-                      ],
-                      // Offstage WebView to keep controller alive in widget tree
-                      const SizedBox(height: 8),
-                      Offstage(
-                        offstage: true,
-                        child: SizedBox(
-                          height: 0,
-                          width: 0,
-                          child: WebViewWidget(controller: _webViewController),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const Divider(height: 1),
-
-                // B) Stack list
-                Expanded(
-                  flex: 2,
-                  child: ListView.builder(
-                    itemCount: stacks.length,
-                    itemBuilder: (context, i) {
-                      final s = stacks[i];
-                      final sup = s.support();
-                      final isSelected = ctrl.selected.contains(s.id);
-                      final isRunningThis = ctrl.currentStackId == s.id;
-
-                      final res = ctrl.results[s.id];
-                      final status = res?.status;
-                      final hasErr = res?.error != null;
-
-                      return ListTile(
-                        enabled: sup.supported && !ctrl.isRunning,
-                        leading: Checkbox(
-                          value: isSelected,
-                          onChanged: (!sup.supported || ctrl.isRunning)
-                              ? null
-                              : (v) => ctrl.toggleSelected(s.id, v ?? false),
-                        ),
-                        title: Row(
-                          children: [
-                            Expanded(child: Text(s.name)),
-                            if (isRunningThis)
-                              const Padding(
-                                padding: EdgeInsets.only(left: 8),
-                                child: SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                              const SizedBox(width: 10),
+                              SizedBox(
+                                width: 110,
+                                child: DropdownButtonFormField<String>(
+                                  value: _method,
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: "GET",
+                                      child: Text("GET"),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: "POST",
+                                      child: Text("POST"),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: "HEAD",
+                                      child: Text("HEAD"),
+                                    ),
+                                  ],
+                                  onChanged: ctrl.isRunning
+                                      ? null
+                                      : (v) {
+                                          if (v != null)
+                                            setState(() => _method = v);
+                                        },
+                                  decoration: const InputDecoration(
+                                    labelText: "Method",
+                                    border: OutlineInputBorder(),
                                   ),
                                 ),
                               ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _bodyController,
+                                  maxLines: 5,
+                                  decoration: const InputDecoration(
+                                    labelText: "Body (optional)",
+                                    hintText: "Raw request body",
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  enabled: !ctrl.isRunning,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextField(
+                                  controller: _headersController,
+                                  maxLines: 5,
+                                  decoration: const InputDecoration(
+                                    labelText: "Headers",
+                                    hintText:
+                                        "Either JSON map or lines: Key: Value",
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  enabled: !ctrl.isRunning,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              SizedBox(
+                                width: 140,
+                                child: TextField(
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: "Timeout (s)",
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  controller: TextEditingController(
+                                    text: _timeoutSeconds.toString(),
+                                  ),
+                                  onChanged: (v) {
+                                    final n =
+                                        int.tryParse(v) ?? _timeoutSeconds;
+                                    setState(() => _timeoutSeconds = n);
+                                  },
+                                  enabled: !ctrl.isRunning,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: ctrl.isRunning
+                                      ? null
+                                      : _runSelected,
+                                  child: const Text(
+                                    "Run Selected (sequential)",
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: ctrl.isRunning
+                                      ? null
+                                      : _runAllSupported,
+                                  child: const Text(
+                                    "Run All Supported (sequential)",
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              OutlinedButton(
+                                onPressed: ctrl.isRunning
+                                    ? null
+                                    : ctrl.clearOutput,
+                                child: const Text("Clear"),
+                              ),
+                            ],
+                          ),
+                          if (ctrl.isRunning &&
+                              ctrl.currentStackId != null) ...[
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                "Running: ${ctrl.currentStackId}",
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
                           ],
-                        ),
-                        subtitle: Text(
-                          sup.supported
-                              ? s.description
-                              : "${s.description}\nNot supported: ${sup.reason}",
-                        ),
-                        trailing: _StatusChip(status: status, error: hasErr),
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            builder: (_) => Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    s.name,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text("Layer: ${s.layer.name}"),
-                                  const SizedBox(height: 8),
-                                  Text(s.description),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    sup.supported
-                                        ? "Supported on this platform ✅"
-                                        : "Unsupported 🚫 — ${sup.reason}",
-                                  ),
-                                ],
+                          // Offstage WebView to keep controller alive in widget tree
+                          const SizedBox(height: 8),
+                          Offstage(
+                            offstage: true,
+                            child: SizedBox(
+                              height: 0,
+                              width: 0,
+                              child: WebViewWidget(
+                                controller: _webViewController,
                               ),
                             ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const Divider(height: 1),
+
+                    // B) Stack list
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: stacks.length,
+                        itemBuilder: (context, i) {
+                          final s = stacks[i];
+                          final sup = s.support();
+                          final isSelected = ctrl.selected.contains(s.id);
+                          final isRunningThis = ctrl.currentStackId == s.id;
+
+                          final res = ctrl.results[s.id];
+                          final status = res?.status;
+                          final hasErr = res?.error != null;
+
+                          return ListTile(
+                            enabled: sup.supported && !ctrl.isRunning,
+                            leading: Checkbox(
+                              value: isSelected,
+                              onChanged: (!sup.supported || ctrl.isRunning)
+                                  ? null
+                                  : (v) =>
+                                        ctrl.toggleSelected(s.id, v ?? false),
+                            ),
+                            title: Row(
+                              children: [
+                                Expanded(child: Text(s.name)),
+                                if (isRunningThis)
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 8),
+                                    child: SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            subtitle: Text(
+                              sup.supported
+                                  ? s.description
+                                  : "${s.description}\nNot supported: ${sup.reason}",
+                            ),
+                            trailing: _StatusChip(
+                              status: status,
+                              error: hasErr,
+                            ),
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                builder: (_) => Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        s.name,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text("Layer: ${s.layer.name}"),
+                                      const SizedBox(height: 8),
+                                      Text(s.description),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        sup.supported
+                                            ? "Supported on this platform ✅"
+                                            : "Unsupported 🚫 — ${sup.reason}",
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                           );
                         },
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
 
-                const Divider(height: 1),
+                // RESULTS tab: Responses
+                ListView(
+                  padding: const EdgeInsets.all(12),
+                  children: stacks.map((s) {
+                    final r = ctrl.results[s.id];
+                    if (r == null) {
+                      return Card(
+                        child: ListTile(
+                          title: Text(s.name),
+                          subtitle: const Text("No result yet."),
+                        ),
+                      );
+                    }
+                    final title =
+                        "${s.name}  •  status=${r.status ?? '—'}  •  ${r.durationMs}ms";
+                    final sub = r.error != null
+                        ? "ERROR: ${r.error}\n\n${previewBody(r.body)}"
+                        : previewBody(r.body);
 
-                // C) Output pane
-                Expanded(
-                  flex: 3,
-                  child: TabBarView(
-                    children: [
-                      // Results
-                      ListView(
-                        padding: const EdgeInsets.all(12),
-                        children: stacks.map((s) {
-                          final r = ctrl.results[s.id];
-                          if (r == null) {
-                            return Card(
-                              child: ListTile(
-                                title: Text(s.name),
-                                subtitle: const Text("No result yet."),
-                              ),
-                            );
-                          }
-                          final title =
-                              "${s.name}  •  status=${r.status ?? '—'}  •  ${r.durationMs}ms";
-                          final sub = r.error != null
-                              ? "ERROR: ${r.error}\n\n${previewBody(r.body)}"
-                              : previewBody(r.body);
-
-                          return Card(
-                            child: ListTile(
-                              title: Text(title),
-                              subtitle: Text(
-                                sub,
-                                style: const TextStyle(fontFamily: "monospace"),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                    return Card(
+                      child: ListTile(
+                        title: Text(title),
+                        subtitle: Text(
+                          sub,
+                          style: const TextStyle(fontFamily: "monospace"),
+                        ),
                       ),
+                    );
+                  }).toList(),
+                ),
 
-                      // Logs
-                      ListView.builder(
-                        padding: const EdgeInsets.all(12),
-                        itemCount: ctrl.logs.length,
-                        itemBuilder: (context, i) {
-                          final l = ctrl.logs[i];
-                          final ts = l.ts
-                              .toIso8601String()
-                              .split("T")
-                              .last
-                              .split(".")
-                              .first;
-                          return Text(
-                            "[$ts] ${l.text}",
-                            style: const TextStyle(fontFamily: "monospace"),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                // LOGS tab
+                ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: ctrl.logs.length,
+                  itemBuilder: (context, i) {
+                    final l = ctrl.logs[i];
+                    final ts = l.ts
+                        .toIso8601String()
+                        .split("T")
+                        .last
+                        .split(".")
+                        .first;
+                    return Text(
+                      "[$ts] ${l.text}",
+                      style: const TextStyle(fontFamily: "monospace"),
+                    );
+                  },
                 ),
               ],
             ),
