@@ -46,3 +46,8 @@ flutter {
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
 }
+
+// Cronet runtime dependency (embedded). Update version as needed for your project.
+dependencies {
+    implementation("org.chromium.net:cronet-embedded:141.7340.3")
+}

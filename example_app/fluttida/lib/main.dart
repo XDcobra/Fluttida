@@ -24,6 +24,7 @@ class MyApp extends StatelessWidget {
         iosLegacyNsUrlConnection: StacksImpl.requestLegacyIos,
         androidHttpUrlConnection: StacksImpl.requestAndroidHttpUrlConnection,
         androidOkHttp: StacksImpl.requestAndroidOkHttp,
+        androidCronet: StacksImpl.requestAndroidCronet,
         webViewHeadless: StacksImpl.requestWebViewHeadless,
       ),
     );

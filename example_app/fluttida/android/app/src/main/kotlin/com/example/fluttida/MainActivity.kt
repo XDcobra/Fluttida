@@ -12,6 +12,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
+import org.chromium.net.CronetEngine
+import org.chromium.net.UrlRequest
+import org.chromium.net.UrlResponseInfo
+import org.chromium.net.UploadDataProviders
+import org.chromium.net.CronetException
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.util.concurrent.Executors
+import android.os.Handler
+import android.os.Looper
 
 class MainActivity : FlutterActivity() {
 	private val CHANNEL = "fluttida/network"
@@ -33,8 +43,89 @@ class MainActivity : FlutterActivity() {
 						result.success(handleOkHttp(args))
 					}.start()
 				}
+				"androidCronet" -> {
+					val args = call.arguments as? Map<*, *>
+					// Cronet request executed asynchronously; we'll call result.success(...) from callback
+					Thread {
+						handleCronetRequest(args, result)
+					}.start()
+				}
 				else -> result.notImplemented()
 			}
+		}
+	}
+
+	private val cronetExecutor = Executors.newSingleThreadExecutor()
+
+	private val cronetEngine: CronetEngine by lazy {
+		CronetEngine.Builder(this).build()
+	}
+
+	private fun handleCronetRequest(args: Map<*, *>?, result: MethodChannel.Result) {
+		val start = System.currentTimeMillis()
+		try {
+			val url = (args?.get("url") as? String) ?: throw Exception("no url")
+			val method = (args["method"] as? String) ?: "GET"
+			val headers = args["headers"] as? Map<*, *>
+			val body = args["body"] as? String
+			val timeoutMs = (args["timeoutMs"] as? Number)?.toLong() ?: 20000L
+
+			val baos = ByteArrayOutputStream()
+
+			val callback = object : UrlRequest.Callback() {
+				override fun onRedirectReceived(request: UrlRequest, info: UrlResponseInfo, newLocationUrl: String) {
+					request.followRedirect()
+				}
+
+				override fun onResponseStarted(request: UrlRequest, info: UrlResponseInfo) {
+					request.read(ByteBuffer.allocateDirect(8192))
+				}
+
+				override fun onReadCompleted(request: UrlRequest, info: UrlResponseInfo, byteBuffer: ByteBuffer) {
+					byteBuffer.flip()
+					val bytes = ByteArray(byteBuffer.remaining())
+					byteBuffer.get(bytes)
+					baos.write(bytes)
+					byteBuffer.clear()
+					request.read(byteBuffer)
+				}
+
+				override fun onSucceeded(request: UrlRequest, info: UrlResponseInfo) {
+					val respBody = baos.toString("UTF-8")
+					val status = info.httpStatusCode
+					val duration = (System.currentTimeMillis() - start).toInt()
+					val map = mapOf("status" to status, "body" to respBody, "durationMs" to duration, "error" to null)
+					Handler(Looper.getMainLooper()).post { result.success(map) }
+				}
+
+				override fun onFailed(request: UrlRequest, info: UrlResponseInfo?, error: CronetException) {
+					val duration = (System.currentTimeMillis() - start).toInt()
+					val map = mapOf("status" to null, "body" to "", "durationMs" to duration, "error" to error.toString())
+					Handler(Looper.getMainLooper()).post { result.success(map) }
+				}
+
+				override fun onCanceled(request: UrlRequest, info: UrlResponseInfo?) {
+					val duration = (System.currentTimeMillis() - start).toInt()
+					val map = mapOf("status" to null, "body" to "", "durationMs" to duration, "error" to "canceled")
+					Handler(Looper.getMainLooper()).post { result.success(map) }
+				}
+			}
+
+			val requestBuilder = cronetEngine.newUrlRequestBuilder(url, callback, cronetExecutor)
+			requestBuilder.setHttpMethod(method)
+			headers?.forEach { (k, v) -> if (k is String && v != null) requestBuilder.addHeader(k, v.toString()) }
+
+			if (body != null && method != "GET" && method != "HEAD") {
+				val bodyBytes = body.toByteArray(Charsets.UTF_8)
+				requestBuilder.setUploadDataProvider(UploadDataProviders.create(bodyBytes), cronetExecutor)
+			}
+
+			val request = requestBuilder.build()
+			request.start()
+		} catch (e: Exception) {
+			val duration = (System.currentTimeMillis() - start).toInt()
+			val map = mapOf("status" to null, "body" to "", "durationMs" to duration, "error" to e.toString())
+			Handler(Looper.getMainLooper()).post { result.success(map) }
 		}
 	}
 

@@ -305,6 +305,49 @@ class StacksImpl {
   }
 
   // ---------------------------------------------------------------------------
+  // Android native: Cronet (via MethodChannel) -- scaffold
+  // ---------------------------------------------------------------------------
+  static Future<RequestResult> requestAndroidCronet(RequestConfig cfg) async {
+    if (!Platform.isAndroid) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: 'Android Cronet is Android-only',
+      );
+    }
+
+    final map = await _legacyChannel
+        .invokeMapMethod<String, dynamic>('androidCronet', {
+          'url': cfg.url,
+          'method': cfg.method,
+          'headers': cfg.headers,
+          'body': cfg.body,
+          'timeoutMs': cfg.timeout.inMilliseconds,
+        });
+
+    if (map == null) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: 'No response from native channel (Cronet).',
+      );
+    }
+
+    final status = (map['status'] as num?)?.toInt();
+    final body = (map['body'] as String?) ?? '';
+    final durationMs = (map['durationMs'] as num?)?.toInt() ?? 0;
+
+    return RequestResult(
+      status: status,
+      body: body,
+      durationMs: durationMs,
+      error: map['error'] as String?,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // 6) WebView headless (DOM outerHTML)
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestWebViewHeadless(RequestConfig cfg) async {

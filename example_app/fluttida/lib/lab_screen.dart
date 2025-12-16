@@ -212,8 +212,8 @@ class LabStacks {
     required Future<RequestResult> Function(RequestConfig)
     androidHttpUrlConnection,
     required Future<RequestResult> Function(RequestConfig) androidOkHttp,
-    required Future<RequestResult> Function(RequestConfig)
-    webViewHeadless, // optional later
+    required Future<RequestResult> Function(RequestConfig) webViewHeadless,
+    required Future<RequestResult> Function(RequestConfig) androidCronet,
   }) {
     SupportInfo iosOnly() => Platform.isIOS
         ? const SupportInfo(true)
@@ -291,9 +291,7 @@ class LabStacks {
         description: "Cronet stack (placeholder later).",
         layer: StackLayer.native,
         support: androidOnly,
-        run: (cfg) async {
-          throw Exception("Not implemented yet (later).");
-        },
+        run: androidCronet,
       ),
 
       // WebView (we keep visible, but you can disable if it’s flaky on iOS)
@@ -341,6 +339,8 @@ class LabScreen extends StatefulWidget {
   final Future<RequestResult> Function(RequestConfig) iosLegacyNsUrlConnection;
   final Future<RequestResult> Function(RequestConfig) androidHttpUrlConnection;
   final Future<RequestResult> Function(RequestConfig) androidOkHttp;
+  // Cronet: will fallback to HttpURLConnection until native handler is implemented
+  final Future<RequestResult> Function(RequestConfig) androidCronet;
   final Future<RequestResult> Function(RequestConfig) webViewHeadless;
 
   const LabScreen({
@@ -353,6 +353,7 @@ class LabScreen extends StatefulWidget {
     required this.iosLegacyNsUrlConnection,
     required this.androidHttpUrlConnection,
     required this.androidOkHttp,
+    required this.androidCronet,
     required this.webViewHeadless,
   });
 
@@ -391,6 +392,7 @@ class _LabScreenState extends State<LabScreen> {
       iosLegacyNsUrlConnection: widget.iosLegacyNsUrlConnection,
       androidHttpUrlConnection: widget.androidHttpUrlConnection,
       androidOkHttp: widget.androidOkHttp,
+      androidCronet: widget.androidCronet,
       webViewHeadless: (cfg) async {
         // Delegate to implementation using the persistent controller
         return StacksImpl.requestWebViewHeadlessWith(_webViewController, cfg);
