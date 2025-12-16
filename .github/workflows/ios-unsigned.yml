@@ -71,8 +71,34 @@ jobs:
         run: |
           grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj
 
+      - name: "Debug: find cssmtype / SecAsn1Item usage"
+        run: |
+          echo "Searching for cssmtype / SecAsn1Item..."
+          grep -RIn "cssmtype.h" ios . || true
+          grep -RIn "SecAsn1Item" ios . || true
+          grep -RIn "SecAsn1Oid" ios . || true
+        
+      - name: "Debug: show xcodebuild SDKROOT / platforms"
+        run: |
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings \
+            | egrep "SDKROOT|PLATFORM_NAME|SUPPORTED_PLATFORMS|EFFECTIVE_PLATFORM_NAME" || true
+
+      - name: "Debug: show compile sources for Runner"
+        run: |
+          ruby - <<'RUBY'
+            require 'xcodeproj'
+            proj = Xcodeproj::Project.open('ios/Runner.xcodeproj')
+            t = proj.targets.find { |x| x.name == 'Runner' }
+            puts "Target: #{t.name}"
+            puts "Compile Sources:"
+            t.source_build_phase.files_references.each { |f| puts " - #{f.path}" }
+          RUBY
+
+
+
       - name: Build iOS (release, no codesign)
-        run: flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign --verbose
 
       - name: Create unsigned IPA from .app (Payload zip)
         run: |
