@@ -28,17 +28,21 @@ class RequestConfig {
     String? url,
     String? method,
     Map<String, String>? headers,
-    String? body,
+    Object? body = _noUpdate,
     Duration? timeout,
   }) {
+    const Object _sentinel = _noUpdate;
     return RequestConfig(
       url: url ?? this.url,
       method: method ?? this.method,
       headers: headers ?? this.headers,
-      body: body ?? this.body,
+      body: identical(body, _sentinel) ? this.body : (body as String?),
       timeout: timeout ?? this.timeout,
     );
   }
+
+  // Internal sentinel used to distinguish "no update" from explicit null.
+  static const Object _noUpdate = Object();
 }
 
 class RequestResult {
@@ -141,6 +145,12 @@ class LabController extends ChangeNotifier {
         notifyListeners();
 
         appendLog("=> START ${s.name}");
+
+        // Debug: record whether the current config has a body (helps debug clearing)
+        final cfgBodyInfo = config.body == null
+            ? 'null'
+            : 'len=${config.body!.length}';
+        appendLog('-> Request config.body = $cfgBodyInfo');
 
         final sw = Stopwatch()..start();
         RequestResult res;
@@ -625,37 +635,115 @@ class _LabScreenState extends State<LabScreen> {
                             ],
                           ),
                           const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton(
+                          // Button bar: Run Selected, Select/Deselect All, Clear Statuscodes, Clear Body, Clear Header
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ElevatedButton(
                                   onPressed: ctrl.isRunning
                                       ? null
                                       : _runSelected,
-                                  child: const Text(
-                                    "Run Selected (sequential)",
-                                  ),
+                                  child: const Text("Run Selected"),
                                 ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: ElevatedButton(
+                                OutlinedButton(
                                   onPressed: ctrl.isRunning
                                       ? null
-                                      : _runAllSupported,
-                                  child: const Text(
-                                    "Run All Supported (sequential)",
+                                      : () {
+                                          setState(() {
+                                            if (ctrl.selected.isEmpty) {
+                                              // Select all supported stacks
+                                              for (final s in stacks) {
+                                                if (s.support().supported) {
+                                                  ctrl.selected.add(s.id);
+                                                }
+                                              }
+                                            } else {
+                                              // Deselect all
+                                              ctrl.selected.clear();
+                                            }
+                                          });
+                                        },
+                                  child: Text(
+                                    ctrl.selected.isEmpty
+                                        ? 'Select All'
+                                        : 'Deselect All',
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 10),
-                              OutlinedButton(
-                                onPressed: ctrl.isRunning
-                                    ? null
-                                    : ctrl.clearOutput,
-                                child: const Text("Clear"),
-                              ),
-                            ],
+                                OutlinedButton(
+                                  onPressed: ctrl.isRunning
+                                      ? null
+                                      : () {
+                                          // Clear only status codes (preserve body/duration/error)
+                                          ctrl.results.forEach((k, v) {
+                                            ctrl.results[k] = RequestResult(
+                                              status: null,
+                                              body: v.body,
+                                              durationMs: v.durationMs,
+                                              error: v.error,
+                                            );
+                                          });
+                                          ctrl.notifyListeners();
+                                        },
+                                  child: const Text('Clear All Statuscodes'),
+                                ),
+                                OutlinedButton(
+                                  onPressed: ctrl.isRunning
+                                      ? null
+                                      : () {
+                                          // Clear bodies in results
+                                          ctrl.results.forEach((k, v) {
+                                            ctrl.results[k] = RequestResult(
+                                              status: v.status,
+                                              body: '',
+                                              durationMs: v.durationMs,
+                                              error: v.error,
+                                            );
+                                          });
+                                          // Clear input field and parsed config
+                                          setState(() {
+                                            _bodyController.text = '';
+                                          });
+                                          ctrl.config = ctrl.config.copyWith(
+                                            body: null,
+                                          );
+                                          ctrl.notifyListeners();
+                                          // Immediate debug log to verify clearing
+                                          ctrl.appendLog(
+                                            '>> Clear Body pressed: _bodyController="${_bodyController.text}" ctrl.config.body=${ctrl.config.body == null ? 'null' : 'len=${ctrl.config.body!.length}'}',
+                                          );
+                                        },
+                                  child: const Text('Clear Body'),
+                                ),
+                                OutlinedButton(
+                                  onPressed: ctrl.isRunning
+                                      ? null
+                                      : () {
+                                          // Clear header input field and parsed config
+                                          setState(() {
+                                            _headersController.text = '';
+                                          });
+                                          ctrl.config = ctrl.config.copyWith(
+                                            headers: {},
+                                          );
+                                          ctrl.notifyListeners();
+                                          // Immediate debug log to verify clearing
+                                          ctrl.appendLog(
+                                            '>> Clear Header pressed: _headersController="${_headersController.text}" ctrl.config.headers=${ctrl.config.headers}',
+                                          );
+                                        },
+                                  child: const Text('Clear Header'),
+                                ),
+                                OutlinedButton(
+                                  onPressed: ctrl.isRunning
+                                      ? null
+                                      : ctrl.clearOutput,
+                                  child: const Text('Clear All Results'),
+                                ),
+                              ],
+                            ),
                           ),
                           if (ctrl.isRunning &&
                               ctrl.currentStackId != null) ...[
