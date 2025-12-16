@@ -45,8 +45,8 @@ import Flutter
           var response: URLResponse?
           let data = try NSURLConnection.sendSynchronousRequest(req, returning: &response)
 
-          // CFURLConnection trigger (needs NSURLRequest)
-          FluttidaCreateCFURLConnection(req as NSURLRequest)
+          // CFURLConnection trigger
+          FluttidaCreateCFURLConnection(req)
 
           let httpResp = response as? HTTPURLResponse
           let status = httpResp?.statusCode ?? -1
