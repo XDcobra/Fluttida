@@ -733,6 +733,7 @@ class _LabScreenState extends State<LabScreen> {
                             trailing: _StatusChip(
                               status: status,
                               error: hasErr,
+                              showNa: s.layer == StackLayer.webview,
                             ),
                             onTap: () {
                               showModalBottomSheet(
@@ -785,8 +786,12 @@ class _LabScreenState extends State<LabScreen> {
                         ),
                       );
                     }
+                    final statusText = r.status != null
+                        ? r.status.toString()
+                        : (s.layer == StackLayer.webview ? 'n/a' : '—');
+
                     final title =
-                        "${s.name}  •  status=${r.status ?? '—'}  •  ${r.durationMs}ms";
+                        "${s.name}  •  status=$statusText  •  ${r.durationMs}ms";
                     final sub = r.error != null
                         ? "ERROR: ${r.error}\n\n${previewBody(r.body)}"
                         : previewBody(r.body);
@@ -846,8 +851,13 @@ class _LabScreenState extends State<LabScreen> {
 class _StatusChip extends StatelessWidget {
   final int? status;
   final bool error;
+  final bool showNa;
 
-  const _StatusChip({required this.status, required this.error});
+  const _StatusChip({
+    required this.status,
+    required this.error,
+    this.showNa = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -855,7 +865,7 @@ class _StatusChip extends StatelessWidget {
     if (error) {
       text = "error";
     } else if (status == null) {
-      text = "—";
+      text = showNa ? 'n/a' : "—";
     } else {
       text = status.toString();
     }
