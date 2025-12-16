@@ -210,6 +210,9 @@ class LabStacks {
     required Future<RequestResult> Function(RequestConfig)
     iosLegacyNsUrlConnection,
     required Future<RequestResult> Function(RequestConfig)
+    androidHttpUrlConnection,
+    required Future<RequestResult> Function(RequestConfig) androidOkHttp,
+    required Future<RequestResult> Function(RequestConfig)
     webViewHeadless, // optional later
   }) {
     SupportInfo iosOnly() => Platform.isIOS
@@ -272,9 +275,7 @@ class LabStacks {
             "Native Android HttpURLConnection (placeholder for Step 2).",
         layer: StackLayer.native,
         support: androidOnly,
-        run: (cfg) async {
-          throw Exception("Not implemented yet (Step 2).");
-        },
+        run: androidHttpUrlConnection,
       ),
       StackDefinition(
         id: "android_okhttp",
@@ -282,9 +283,7 @@ class LabStacks {
         description: "Native OkHttp client (placeholder for Step 3).",
         layer: StackLayer.native,
         support: androidOnly,
-        run: (cfg) async {
-          throw Exception("Not implemented yet (Step 3).");
-        },
+        run: androidOkHttp,
       ),
       StackDefinition(
         id: "android_cronet",
@@ -340,6 +339,8 @@ class LabScreen extends StatefulWidget {
   final Future<RequestResult> Function(RequestConfig) httpIoClient;
   final Future<RequestResult> Function(RequestConfig) cupertinoHttp;
   final Future<RequestResult> Function(RequestConfig) iosLegacyNsUrlConnection;
+  final Future<RequestResult> Function(RequestConfig) androidHttpUrlConnection;
+  final Future<RequestResult> Function(RequestConfig) androidOkHttp;
   final Future<RequestResult> Function(RequestConfig) webViewHeadless;
 
   const LabScreen({
@@ -350,6 +351,8 @@ class LabScreen extends StatefulWidget {
     required this.httpIoClient,
     required this.cupertinoHttp,
     required this.iosLegacyNsUrlConnection,
+    required this.androidHttpUrlConnection,
+    required this.androidOkHttp,
     required this.webViewHeadless,
   });
 
@@ -386,6 +389,8 @@ class _LabScreenState extends State<LabScreen> {
       httpIoClient: widget.httpIoClient,
       cupertinoHttp: widget.cupertinoHttp,
       iosLegacyNsUrlConnection: widget.iosLegacyNsUrlConnection,
+      androidHttpUrlConnection: widget.androidHttpUrlConnection,
+      androidOkHttp: widget.androidOkHttp,
       webViewHeadless: (cfg) async {
         // Delegate to implementation using the persistent controller
         return StacksImpl.requestWebViewHeadlessWith(_webViewController, cfg);

@@ -217,6 +217,94 @@ class StacksImpl {
   }
 
   // ---------------------------------------------------------------------------
+  // Android native: HttpURLConnection (via MethodChannel)
+  // ---------------------------------------------------------------------------
+  static Future<RequestResult> requestAndroidHttpUrlConnection(
+    RequestConfig cfg,
+  ) async {
+    if (!Platform.isAndroid) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: 'Android HttpURLConnection is Android-only',
+      );
+    }
+
+    final map = await _legacyChannel
+        .invokeMapMethod<String, dynamic>('androidHttpURLConnection', {
+          'url': cfg.url,
+          'method': cfg.method,
+          'headers': cfg.headers,
+          'body': cfg.body,
+          'timeoutMs': cfg.timeout.inMilliseconds,
+        });
+
+    if (map == null) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: 'No response from native channel (HttpURLConnection).',
+      );
+    }
+
+    final status = (map['status'] as num?)?.toInt();
+    final body = (map['body'] as String?) ?? '';
+    final durationMs = (map['durationMs'] as num?)?.toInt() ?? 0;
+
+    return RequestResult(
+      status: status,
+      body: body,
+      durationMs: durationMs,
+      error: map['error'] as String?,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Android native: OkHttp (via MethodChannel)
+  // ---------------------------------------------------------------------------
+  static Future<RequestResult> requestAndroidOkHttp(RequestConfig cfg) async {
+    if (!Platform.isAndroid) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: 'Android OkHttp is Android-only',
+      );
+    }
+
+    final map = await _legacyChannel
+        .invokeMapMethod<String, dynamic>('androidOkHttp', {
+          'url': cfg.url,
+          'method': cfg.method,
+          'headers': cfg.headers,
+          'body': cfg.body,
+          'timeoutMs': cfg.timeout.inMilliseconds,
+        });
+
+    if (map == null) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: 'No response from native channel (OkHttp).',
+      );
+    }
+
+    final status = (map['status'] as num?)?.toInt();
+    final body = (map['body'] as String?) ?? '';
+    final durationMs = (map['durationMs'] as num?)?.toInt() ?? 0;
+
+    return RequestResult(
+      status: status,
+      body: body,
+      durationMs: durationMs,
+      error: map['error'] as String?,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // 6) WebView headless (DOM outerHTML)
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestWebViewHeadless(RequestConfig cfg) async {

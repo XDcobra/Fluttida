@@ -22,6 +22,8 @@ class MyApp extends StatelessWidget {
         httpIoClient: StacksImpl.requestHttpViaExplicitIoClient,
         cupertinoHttp: StacksImpl.requestCupertinoDefault,
         iosLegacyNsUrlConnection: StacksImpl.requestLegacyIos,
+        androidHttpUrlConnection: StacksImpl.requestAndroidHttpUrlConnection,
+        androidOkHttp: StacksImpl.requestAndroidOkHttp,
         webViewHeadless: StacksImpl.requestWebViewHeadless,
       ),
     );
