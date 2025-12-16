@@ -50,8 +50,8 @@ jobs:
 
             runner_group = proj.main_group.find_subpath('Runner', true)
 
-            h_path = 'Runner/LegacyCFURLConnection.h'
-            m_path = 'Runner/LegacyCFURLConnection.m'
+            h_path = 'LegacyCFURLConnection.h'
+            m_path = 'LegacyCFURLConnection.m'
 
             proj.files.find { |f| f.path == h_path } || runner_group.new_file(h_path)
             m_ref = proj.files.find { |f| f.path == m_path } || runner_group.new_file(m_path)
@@ -70,44 +70,6 @@ jobs:
       - name: Verify pbxproj contains LegacyCFURLConnection
         run: |
           grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj
-
-      - name: "Debug: find cssmtype / SecAsn1Item usage"
-        run: |
-          echo "Searching for cssmtype / SecAsn1Item..."
-          grep -RIn "cssmtype.h" ios . || true
-          grep -RIn "SecAsn1Item" ios . || true
-          grep -RIn "SecAsn1Oid" ios . || true
-        
-      - name: "Debug: show xcodebuild SDKROOT / platforms"
-        run: |
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings \
-            | egrep "SDKROOT|PLATFORM_NAME|SUPPORTED_PLATFORMS|EFFECTIVE_PLATFORM_NAME" || true
-
-      - name: "Debug: show compile sources for Runner"
-        run: |
-          ruby - <<'RUBY'
-            require 'xcodeproj'
-            proj = Xcodeproj::Project.open('ios/Runner.xcodeproj')
-            t = proj.targets.find { |x| x.name == 'Runner' }
-            puts "Target: #{t.name}"
-            puts "Compile Sources:"
-            t.source_build_phase.files_references.each { |f| puts " - #{f.path}" }
-          RUBY
-
-      - name: "Debug: search for MacOSX.sdk references in iOS configs"
-        run: |
-          echo "== pbxproj / xcconfig MacOSX references =="
-          grep -RIn "MacOSX\.sdk\|MacOSX\.platform\|DEVELOPER_SDK_DIR" ios || true
-          echo "== Pods / symlinks Security references =="
-          grep -RIn "cssmtype\.h\|SecAsn1Item\|SecAsn1Oid" ios || true
-
-      - name: "Debug: print header/framework search paths"
-        run: |
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings \
-            | egrep "HEADER_SEARCH_PATHS|SYSTEM_HEADER_SEARCH_PATHS|USER_HEADER_SEARCH_PATHS|FRAMEWORK_SEARCH_PATHS|SDKROOT|PLATFORM_NAME" || true
-
 
       - name: Build iOS (release, no codesign)
         run: flutter build ios --release --no-codesign --verbose
