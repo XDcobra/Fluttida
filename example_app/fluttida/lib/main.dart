@@ -236,19 +236,32 @@ class _HomeScreenState extends State<HomeScreen> {
   // ---------------------------------------------------------------------------
   // Scenario 7: WebView headless (iOS: WKWebView loadRequest)
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Scenario 7: WebView headless (iOS: WKWebView loadRequest)
+  // ---------------------------------------------------------------------------
   Future<RequestResult> _requestWebViewHeadless() async {
     final finished = Completer<void>();
     final errors = Completer<String?>();
+
+    // Optional: für Debug / um zu sehen, ob überhaupt navigiert wird
+    bool sawAnyNavigation = false;
 
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageFinished: (_) {
+          onPageStarted: (url) {
+            sawAnyNavigation = true;
+            debugPrint("WV started: $url");
+          },
+          onPageFinished: (url) {
+            debugPrint("WV finished: $url");
             if (!finished.isCompleted) finished.complete();
           },
           onWebResourceError: (err) {
-            debugPrint("WV error: ${err.errorCode} ${err.description}");
+            final msg = "code=${err.errorCode} desc=${err.description}";
+            debugPrint("WV error: $msg");
+            if (!errors.isCompleted) errors.complete(msg);
           },
           onNavigationRequest: (req) {
             debugPrint("WV nav: ${req.url}");
@@ -257,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
+    // Wichtig: Controller in State speichern, damit Offstage(WebViewWidget) ihn "hostet"
     setState(() {
       _headlessWebViewController = controller;
     });
@@ -266,7 +280,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final done = await Future.any([
       finished.future.then((_) => null),
       errors.future,
-      Future.delayed(const Duration(seconds: 20), () => 'timeout'),
+      Future.delayed(
+        const Duration(seconds: 20),
+        () => sawAnyNavigation
+            ? 'timeout_after_navigation'
+            : 'timeout_no_navigation',
+      ),
     ]);
 
     if (done != null) {
@@ -283,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openWebViewScreen() {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const WebViewScreen(url: _url)));
+    ).push(MaterialPageRoute(builder: (_) => WebViewScreen(url: _url)));
   }
 
   @override
@@ -366,6 +385,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+            // Wichtig: WKWebView muss im Widget-Tree hängen, auch wenn offstage
             Offstage(
               offstage: true,
               child: SizedBox(
@@ -399,6 +419,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (url) => debugPrint("UI WV started: $url"),
+          onPageFinished: (url) => debugPrint("UI WV finished: $url"),
+          onWebResourceError: (e) =>
+              debugPrint("UI WV error: ${e.errorCode} ${e.description}"),
+        ),
+      )
       ..loadRequest(Uri.parse(widget.url));
   }
 
@@ -406,7 +434,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('WebView: ${widget.url}')),
-      body: WebViewWidget(controller: _controller),
+      body: SafeArea(child: WebViewWidget(controller: _controller)),
     );
   }
 }
