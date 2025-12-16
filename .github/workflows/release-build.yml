@@ -45,8 +45,7 @@ jobs:
             --build-number=${{ env.BUILD_NUMBER }} \
             --dart-define=APP_VERSION=${{ env.VERSION }} \
             --dart-define=APP_BUILD_NUMBER=${{ env.BUILD_NUMBER }}
-          mkdir -p artifacts/android
-          cp build/app/outputs/flutter-apk/*.apk artifacts/android/ || true
+          ls -la build/app/outputs/flutter-apk || true
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
@@ -71,6 +70,44 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
 
+      - name: Patch Runner.xcodeproj (add LegacyCFURLConnection)
+        run: |
+          sudo gem install xcodeproj
+
+          ruby - <<'RUBY'
+            require 'xcodeproj'
+
+            proj_path = 'ios/Runner.xcodeproj'
+            proj = Xcodeproj::Project.open(proj_path)
+
+            target = proj.targets.find { |t| t.name == 'Runner' }
+            raise "Runner target not found" unless target
+
+            runner_group = proj.main_group.find_subpath('Runner', true)
+
+            h_path = 'LegacyCFURLConnection.h'
+            m_path = 'LegacyCFURLConnection.m'
+
+            proj.files.find { |f| f.path == h_path } || runner_group.new_file(h_path)
+            m_ref = proj.files.find { |f| f.path == m_path } || runner_group.new_file(m_path)
+
+            already = target.source_build_phase.files_references.any? { |fr| fr.path == m_path }
+            unless already
+              target.add_file_references([m_ref])
+              puts "Added #{m_path} to Runner target"
+            else
+              puts "#{m_path} already in Runner target"
+            end
+
+            proj.save
+          RUBY
+
+      - name: Verify pbxproj contains LegacyCFURLConnection
+        run: |
+          echo "---- project.pbxproj lines containing LegacyCFURLConnection ----"
+          grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj || true
+          echo "---- end grep ----"
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -87,9 +124,8 @@ jobs:
             --build-number=${{ env.BUILD_NUMBER }} \
             --dart-define=APP_VERSION=${{ env.VERSION }} \
             --dart-define=APP_BUILD_NUMBER=${{ env.BUILD_NUMBER }} || true
-          mkdir -p artifacts/ios
-          cp build/ios/ipa/*.ipa artifacts/ios/ || true
-          ls -la artifacts/ios || true
+          ls -la build/ios/iphoneos || true
+          ls -la build/ios/ipa || true
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
