@@ -11,6 +11,9 @@ env:
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: example_app/fluttida
     outputs:
       version: ${{ steps.set-vars.outputs.version }}
     steps:
@@ -54,6 +57,9 @@ jobs:
   build-ios:
     runs-on: macos-latest
     needs: build-android
+    defaults:
+      run:
+        working-directory: example_app/fluttida
     steps:
       - uses: actions/checkout@v4
 
