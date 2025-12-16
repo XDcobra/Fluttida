@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'stacks/stacks_impl.dart';
 
 enum StackLayer { dart, native, webview, ndk }
 
@@ -311,6 +313,24 @@ class LabStacks {
 /// ------------------------------------------------------------
 /// UI Screen
 /// ------------------------------------------------------------
+Map<String, String>? _tryParseJsonMap(String s) {
+  try {
+    final decoded = json.decode(s);
+    if (decoded is Map) {
+      final out = <String, String>{};
+      decoded.forEach((key, value) {
+        if (key is String) {
+          out[key] = value?.toString() ?? '';
+        }
+      });
+      return out;
+    }
+  } catch (_) {
+    // not JSON, fallthrough
+  }
+  return null;
+}
+
 class LabScreen extends StatefulWidget {
   final String initialUrl;
 
@@ -340,9 +360,13 @@ class LabScreen extends StatefulWidget {
 class _LabScreenState extends State<LabScreen> {
   late final LabController ctrl;
   late final List<StackDefinition> stacks;
+  late final WebViewController _webViewController;
 
   final _urlController = TextEditingController();
   String _method = "GET";
+  final _bodyController = TextEditingController();
+  final _headersController = TextEditingController();
+  int _timeoutSeconds = 20;
 
   @override
   void initState() {
@@ -352,13 +376,20 @@ class _LabScreenState extends State<LabScreen> {
 
     ctrl = LabController(config: RequestConfig(url: widget.initialUrl));
 
+    // Prepare a persistent WebViewController for headless usage
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted);
+
     stacks = LabStacks.build(
       dartIoRaw: widget.dartIoRaw,
       httpDefault: widget.httpDefault,
       httpIoClient: widget.httpIoClient,
       cupertinoHttp: widget.cupertinoHttp,
       iosLegacyNsUrlConnection: widget.iosLegacyNsUrlConnection,
-      webViewHeadless: widget.webViewHeadless,
+      webViewHeadless: (cfg) async {
+        // Delegate to implementation using the persistent controller
+        return StacksImpl.requestWebViewHeadlessWith(_webViewController, cfg);
+      },
     );
 
     // default select: all supported stacks
@@ -372,15 +403,48 @@ class _LabScreenState extends State<LabScreen> {
   @override
   void dispose() {
     _urlController.dispose();
+    _bodyController.dispose();
+    _headersController.dispose();
     ctrl.dispose();
     super.dispose();
   }
 
   void _applyConfig() {
+    // Parse headers from text area: support JSON map or simple key:value lines
+    Map<String, String> parsedHeaders = {};
+    final raw = _headersController.text.trim();
+    if (raw.isNotEmpty) {
+      try {
+        final maybeJson = raw;
+        final decoded = _tryParseJsonMap(maybeJson);
+        if (decoded != null) {
+          parsedHeaders = decoded;
+        } else {
+          for (final line in raw.split(RegExp(r"\r?\n"))) {
+            final trimmed = line.trim();
+            if (trimmed.isEmpty) continue;
+            final idx = trimmed.indexOf(":");
+            if (idx > 0) {
+              final k = trimmed.substring(0, idx).trim();
+              final v = trimmed.substring(idx + 1).trim();
+              if (k.isNotEmpty) parsedHeaders[k] = v;
+            }
+          }
+        }
+      } catch (_) {
+        // ignore parse errors; leave headers empty if invalid
+      }
+    }
+
+    // Always include a lab UA unless overridden
+    parsedHeaders.putIfAbsent("User-Agent", () => "Fluttida/1.0 (Lab)");
+
     ctrl.config = ctrl.config.copyWith(
       url: _urlController.text.trim(),
       method: _method,
-      headers: {"User-Agent": "Fluttida/1.0 (Lab)"},
+      headers: parsedHeaders,
+      body: _bodyController.text.isEmpty ? null : _bodyController.text,
+      timeout: Duration(seconds: _timeoutSeconds.clamp(1, 600)),
     );
   }
 
@@ -473,6 +537,57 @@ class _LabScreenState extends State<LabScreen> {
                       ),
                       const SizedBox(height: 10),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _bodyController,
+                              maxLines: 5,
+                              decoration: const InputDecoration(
+                                labelText: "Body (optional)",
+                                hintText: "Raw request body",
+                                border: OutlineInputBorder(),
+                              ),
+                              enabled: !ctrl.isRunning,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _headersController,
+                              maxLines: 5,
+                              decoration: const InputDecoration(
+                                labelText: "Headers",
+                                hintText:
+                                    "Either JSON map or lines: Key: Value",
+                                border: OutlineInputBorder(),
+                              ),
+                              enabled: !ctrl.isRunning,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          SizedBox(
+                            width: 140,
+                            child: TextField(
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: "Timeout (s)",
+                                border: OutlineInputBorder(),
+                              ),
+                              controller: TextEditingController(
+                                text: _timeoutSeconds.toString(),
+                              ),
+                              onChanged: (v) {
+                                final n = int.tryParse(v) ?? _timeoutSeconds;
+                                setState(() => _timeoutSeconds = n);
+                              },
+                              enabled: !ctrl.isRunning,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
                         children: [
                           Expanded(
                             child: ElevatedButton(
@@ -508,6 +623,16 @@ class _LabScreenState extends State<LabScreen> {
                           ),
                         ),
                       ],
+                      // Offstage WebView to keep controller alive in widget tree
+                      const SizedBox(height: 8),
+                      Offstage(
+                        offstage: true,
+                        child: SizedBox(
+                          height: 0,
+                          width: 0,
+                          child: WebViewWidget(controller: _webViewController),
+                        ),
+                      ),
                     ],
                   ),
                 ),
