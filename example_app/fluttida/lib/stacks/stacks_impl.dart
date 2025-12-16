@@ -221,22 +221,104 @@ class StacksImpl {
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestWebViewHeadless(RequestConfig cfg) async {
     final sw = Stopwatch()..start();
+    try {
+      throw Exception(
+        "Provide WebViewController from UI and call requestWebViewHeadlessWith(controller, cfg)",
+      );
+    } catch (e) {
+      sw.stop();
+      return RequestResult(
+        status: null,
+        body: "",
+        durationMs: sw.elapsedMilliseconds,
+        error: e.toString(),
+      );
+    }
+  }
 
-    // Hinweis: WebView benötigt "UI thread" + widget tree.
-    // Wenn du es headless machst, muss es im Widget tree existieren (Offstage),
-    // das machst du bereits im LabScreen.
-    //
-    // Daher: In Step 2.4 machen wir es so, dass LabScreen den Controller erzeugt
-    // und hier nur "load+wait+extract" auf dem Controller passiert.
-    //
-    // Für jetzt: wir werfen eine klare Exception.
-    sw.stop();
-    return RequestResult(
-      status: null,
-      body: "",
-      durationMs: sw.elapsedMilliseconds,
-      error:
-          "Step 2.4: WebView headless wird über Controller aus dem Screen gelöst.",
-    );
+  // Headless WebView using an existing controller created in the widget tree.
+  static Future<RequestResult> requestWebViewHeadlessWith(
+    WebViewController controller,
+    RequestConfig cfg,
+  ) async {
+    final sw = Stopwatch()..start();
+    try {
+      final uri = Uri.parse(cfg.url);
+
+      // Configure JS to allow DOM extraction
+      await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      // Try to use the extended loadRequest signature with method/headers/body.
+      bool loaded = false;
+      try {
+        // Map method to LoadRequestMethod if available
+        final methodUpper = cfg.method.toUpperCase();
+        dynamic loadMethod;
+        try {
+          // Prefer LoadRequestMethod from webview_flutter >= 4.7
+          final m = LoadRequestMethod.values.firstWhere(
+            (m) => m.name.toUpperCase() == methodUpper,
+            orElse: () => LoadRequestMethod.get,
+          );
+          loadMethod = m;
+        } catch (_) {
+          // Fallback: use GET when enum not present
+          loadMethod = null;
+        }
+
+        if (loadMethod != null) {
+          await controller.loadRequest(
+            uri,
+            method: loadMethod,
+            headers: cfg.headers,
+            body: cfg.body != null
+                ? Uint8List.fromList(utf8.encode(cfg.body!))
+                : null,
+          );
+          loaded = true;
+        }
+      } catch (_) {
+        // ignore; will fallback below
+      }
+
+      if (!loaded) {
+        // Graceful fallback for older plugin versions
+        await controller.loadRequest(uri);
+      }
+
+      // Simple settle wait; UI controller doesn't expose onPageFinished awaits.
+      // We'll try a few times to get outerHTML.
+      String html = "";
+      for (int i = 0; i < 10; i++) {
+        try {
+          final result = await controller.runJavaScriptReturningResult(
+            'document.documentElement.outerHTML',
+          );
+          if (result is String) {
+            html = result;
+          } else if (result != null) {
+            html = result.toString();
+          }
+        } catch (_) {
+          // ignore interim errors
+        }
+        if (html.isNotEmpty) break;
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
+      sw.stop();
+      return RequestResult(
+        status: null, // WebView doesn't expose HTTP status
+        body: html,
+        durationMs: sw.elapsedMilliseconds,
+      );
+    } catch (e) {
+      sw.stop();
+      return RequestResult(
+        status: null,
+        body: "",
+        durationMs: sw.elapsedMilliseconds,
+        error: e.toString(),
+      );
+    }
   }
 }
