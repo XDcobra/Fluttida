@@ -24,7 +24,7 @@ jobs:
           BUILD_NUMBER=$(git rev-list --count HEAD)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
-          echo "::set-output name=version::$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -127,21 +127,38 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Find APK file
+        id: find_apk
+        run: |
+          APK_PATH=$(find artifacts/android -type f -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "No APK file found!"
+            exit 1
+          fi
+          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
       - name: Upload Android APK to release (if present)
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: artifacts/android/*.apk
+          asset_path: ${{ env.APK_PATH }}
           asset_name: fluttida_${{ env.VERSION }}.apk
           asset_content_type: application/vnd.android.package-archive
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      - name: Find IPA file
+        id: find_ipa
+        run: |
+          IPA_PATH=$(find artifacts/ios -type f -name "*.ipa" | head -n 1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "No IPA file found!"
+            exit 1
+          fi
+          echo "IPA_PATH=$IPA_PATH" >> $GITHUB_ENV
       - name: Upload iOS IPA to release (if present)
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: artifacts/ios/*.ipa
+          asset_path: ${{ env.IPA_PATH }}
           asset_name: fluttida_${{ env.VERSION }}.ipa
           asset_content_type: application/octet-stream
         env:
