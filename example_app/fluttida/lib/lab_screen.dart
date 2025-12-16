@@ -489,6 +489,17 @@ class _LabScreenState extends State<LabScreen> {
   }
 
   Future<void> _runSelected() async {
+    if (ctrl.selected.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one network stack to run.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     _applyConfig();
 
     final queue = stacks
