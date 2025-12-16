@@ -95,6 +95,18 @@ jobs:
             t.source_build_phase.files_references.each { |f| puts " - #{f.path}" }
           RUBY
 
+      - name: "Debug: search for MacOSX.sdk references in iOS configs"
+        run: |
+          echo "== pbxproj / xcconfig MacOSX references =="
+          grep -RIn "MacOSX\.sdk\|MacOSX\.platform\|DEVELOPER_SDK_DIR" ios || true
+          echo "== Pods / symlinks Security references =="
+          grep -RIn "cssmtype\.h\|SecAsn1Item\|SecAsn1Oid" ios || true
+
+      - name: "Debug: print header/framework search paths"
+        run: |
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings \
+            | egrep "HEADER_SEARCH_PATHS|SYSTEM_HEADER_SEARCH_PATHS|USER_HEADER_SEARCH_PATHS|FRAMEWORK_SEARCH_PATHS|SDKROOT|PLATFORM_NAME" || true
 
 
       - name: Build iOS (release, no codesign)

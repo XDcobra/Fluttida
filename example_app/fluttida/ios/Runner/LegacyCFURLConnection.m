@@ -1,14 +1,23 @@
 #import "LegacyCFURLConnection.h"
-#import <CFNetwork/CFNetwork.h>
+#import <Foundation/Foundation.h>
+
+@interface FluttidaConnDelegate : NSObject <NSURLConnectionDelegate, NSURLConnectionDataDelegate>
+@end
+@implementation FluttidaConnDelegate
+@end
 
 void FluttidaCreateCFURLConnection(NSURLRequest *request) {
-    // NSURLRequest <-> CFURLRequest is toll-free bridged
-    CFURLRequestRef cfReq = (__bridge CFURLRequestRef)request;
+    if (!request) return;
 
-    CFURLConnectionRef conn =
-        CFURLConnectionCreateWithRequest(kCFAllocatorDefault, cfReq, NULL);
+    static FluttidaConnDelegate *delegate;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        delegate = [FluttidaConnDelegate new];
+    });
 
-    if (conn) {
-        CFRelease(conn);
-    }
+    // Triggert den NSURLConnection Stack (deprecated, aber vorhanden)
+    NSURLConnection *conn = [[NSURLConnection alloc] initWithRequest:request
+                                                            delegate:delegate
+                                                    startImmediately:YES];
+    (void)conn;
 }
