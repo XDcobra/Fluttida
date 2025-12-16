@@ -1,8 +1,28 @@
 # Fluttida (Network Stack Lab)
 
-Fluttida is a small Flutter-based network stack lab and test playground. It helps you run the same HTTP request through multiple networking implementations (Dart and native platform stacks), inspect and compare results, and evaluate behavior under instrumentation.
+![Flutter](https://img.shields.io/badge/Flutter-3.x-blue?style=flat&logo=flutter)
+![Frida](https://img.shields.io/badge/Frida-17.x-red?style=flat&logo=frida)
+![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android-lightgrey?style=flat)
 
-Features
+Fluttida is a small Flutter-based network stack lab and test playground. It helps you run the same HTTP request through multiple networking implementations (Dart and native platform stacks), inspect and compare results, and evaluate behavior under instrumentation. It works on both iOS and Android.
+
+## Platform Support
+
+Fluttida runs on both supported mobile platforms. The table below highlights availability per OS:
+
+| Feature / Stack | iOS | Android |
+|---|:--:|:--:|
+| dart:io HttpClient | ✅ | ✅ |
+| package:http (default) | ✅ | ✅ |
+| package:http via IOClient | ✅ | ✅ |
+| cupertino_http (NSURLSession) | ✅ | ❌ |
+| iOS legacy NSURLConnection | ✅ | ❌ |
+| Android HttpURLConnection | ❌ | ✅ |
+| Android OkHttp | ❌ | ✅ |
+| Cronet (Android) | ❌ | ✅ |
+| Headless WebView DOM scraping | ✅ | ✅ |
+
+## Features
 - Multiple network stacks: `dart:io HttpClient`, `package:http` (default), `package:http` via `IOClient`, `cupertino_http` (NSURLSession on iOS), native iOS legacy connection, Android native stacks (HttpURLConnection, OkHttp, Cronet), and a headless WebView DOM scraper.
 - Unified result format: each stack returns `status`, `body`, `durationMs`, and `error` (when applicable) so you can compare outputs easily.
 - Interactive UI: three tabs — **Stack** (configure request and pick stacks), **Results** (preview and full-screen viewer), and **Logs** (per-run debug output).
