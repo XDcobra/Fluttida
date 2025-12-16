@@ -42,13 +42,21 @@ Flutter apps can use different networking stacks depending on the code path. The
 
 
 This repo includes several scripts to make reverse engineering of flutter APIs easier.
-| Engine    | Check what Engine Scripts                                     | Intercept Script                             |
-|-----------|---------------------------------------------------------------|----------------------------------------------|
-| Dart:io   | [check_dartio.js](frida_detect_engine/check_dartio.js)        | [intercept_dartio.js](intercept_dartio.js)   |
-| Cupertino | [check_cupertino.js](frida_detect_engine/check_cupertino.js)  | Coming soon!                                 |
-| NSURL     | [check_nsurl.js](frida_detect_engine/check_nsurl.js)          | Coming soon!                                 |
-| WebView   | [check_webview.js](frida_detect_engine/check_webview.js)      | Coming soon!                                 |
+<div align="center">
 
+| Engine / Library                 | Detection (iOS)                                                                 | Detection (Android)                                                              | Intercept (iOS)                                             | Intercept (Android)                                           |
+|----------------------------------|----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|-------------------------------------------------------------|----------------------------------------------------------------|
+| dart:io HttpClient               | [frida_detect_engine/check_dartio.js](frida_detect_engine/check_dartio.js)      | Coming soon     | [intercept_dartio.js](intercept_dartio.js)                  | [intercept_dartio.js](intercept_dartio.js)                     |
+| package:http (default / IOClient)| Coming soon                                                                      | Coming soon                                                                       | Coming soon                                                 | Coming soon                                                    |
+| package:http via IOClient        | Coming soon                                                                      | Coming soon                                                                       | Coming soon                                                 | Coming soon                                                    |
+| cupertino_http (NSURLSession)    | [frida_detect_engine/check_cupertino.js](frida_detect_engine/check_cupertino.js)| N/A                                                                               | Coming soon                                                 | N/A                                                            |
+| NSURLConnection / CFURL          | [frida_detect_engine/check_nsurl.js](frida_detect_engine/check_nsurl.js)        | N/A                                                                               | Coming soon                                                 | N/A                                                            |
+| WKWebView / WebView              | [frida_detect_engine/check_webview.js](frida_detect_engine/check_webview.js)    | Coming soon     | Coming soon                                                 | Coming soon                                                    |
+| Android HttpURLConnection        | N/A                                                                              | Coming soon                                                                       | N/A                                                         | Coming soon                                                    |
+| Android OkHttp                   | N/A                                                                              | Coming soon                                                                       | N/A                                                         | Coming soon                                                    |
+| Android Cronet (embedded)        | N/A                                                                              | Coming soon                                                                       | N/A                                                         | Coming soon                                                    |
+
+</div>
 ---
 
 ### Technical Background
@@ -100,11 +108,40 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 - **NSURLConnection/CFNetwork:** Hook `+[NSURLConnection sendSynchronousRequest:returningResponse:error:]` or `CFURLConnectionCreateWithRequest`.  
 - **WebView:** Hook `-[WKWebView loadRequest:]`.
 
----
 
-### Best Practices
-- Choose the right proxy mode.  
-- Support IPv6.  
-- Trust CA certificates.  
-- Plan for pinning bypass.  
-- Account for Windows limitations.
+## Example App: Fluttida ([example_app/fluttida](example_app/fluttida))
+<div style="display:flex;gap:8px;align-items:flex-start;">
+  <img src="example_app/fluttida/docs/images/main_screen.png" alt="Fluttida Main screen" style="width:33%;height:auto;border-radius:8px;" />
+  <img src="example_app/fluttida/docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:33%;height:auto;border-radius:8px;" />
+  <img src="example_app/fluttida/docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:33%;height:auto;border-radius:8px;" />
+</div>
+
+This repository includes a small Flutter example app located at [example_app/fluttida](example_app/fluttida). The app is a network-stack lab and playground designed to help you test, compare, and instrument different HTTP clients and platform stacks while using Frida.
+
+How this app helps with Frida
+- Playground for multiple stacks: run the same request via `dart:io`, `package:http`, iOS `NSURLSession` (via `cupertino_http`), Android native stacks (HttpURLConnection, OkHttp, Cronet), and a headless WebView — compare results side-by-side.
+- Safe instrumentation target: use the app on a device or emulator as a controlled target for Frida scripts so you can attach hooks without affecting production apps.
+- Validate hooks & proxying: reproduce real-world scenarios (headers, redirects, TLS behavior) and verify that your Frida scripts (e.g. `intercept_dartio.js`) correctly redirect or modify traffic.
+- Debugging helper: the app shows unified results (`status`, `body`, `durationMs`, `error`) and logs, making it easy to observe the effects of your live instrumentation.
+
+Quick steps to use the example app with Frida
+1. Run the example app on a device or emulator:
+
+```bash
+cd example_app/fluttida
+flutter pub get
+flutter run
+```
+
+2. Attach Frida and load a detection or interception script, for example:
+
+```bash
+# list processes and attach by name or PID
+frida-ps -Uai
+frida -U -n YourApp -l frida_detect_engine/check_dartio.js
+# or to intercept
+frida -U -n YourApp -l intercept_dartio.js
+```
+
+3. Use the app UI to run requests across different stacks and inspect the Results/Logs to confirm whether your hooks or proxying are working as intended.
+
