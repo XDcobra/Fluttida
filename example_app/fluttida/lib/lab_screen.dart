@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'stacks/stacks_impl.dart';
 
@@ -380,7 +381,8 @@ class _LabScreenState extends State<LabScreen> {
 
     // Provide default examples for quick testing
     _bodyController.text = '{"example":"hello world","count":1}';
-    _headersController.text = '{"Content-Type":"application/json","X-Api-Key":"abc123"}';
+    _headersController.text =
+        '{"Content-Type":"application/json","X-Api-Key":"abc123"}';
 
     ctrl = LabController(config: RequestConfig(url: widget.initialUrl));
 
@@ -796,6 +798,19 @@ class _LabScreenState extends State<LabScreen> {
                           sub,
                           style: const TextStyle(fontFamily: "monospace"),
                         ),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => FullscreenResultPage(
+                                title: title,
+                                body: r.body,
+                                status: r.status,
+                                durationMs: r.durationMs,
+                                error: r.error,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     );
                   }).toList(),
@@ -852,6 +867,117 @@ class _StatusChip extends StatelessWidget {
         border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+    );
+  }
+}
+
+class FullscreenResultPage extends StatefulWidget {
+  final String title;
+  final String body;
+  final int? status;
+  final int durationMs;
+  final String? error;
+
+  const FullscreenResultPage({
+    Key? key,
+    required this.title,
+    required this.body,
+    this.status,
+    required this.durationMs,
+    this.error,
+  }) : super(key: key);
+
+  @override
+  State<FullscreenResultPage> createState() => _FullscreenResultPageState();
+}
+
+class _FullscreenResultPageState extends State<FullscreenResultPage> {
+  final ScrollController _scroll = ScrollController();
+
+  void _scrollToEnd() {
+    if (!_scroll.hasClients) return;
+    final max = _scroll.position.maxScrollExtent;
+    _scroll.animateTo(
+      max,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          IconButton(
+            tooltip: 'Go to end',
+            icon: const Icon(Icons.vertical_align_bottom),
+            onPressed: _scrollToEnd,
+          ),
+          IconButton(
+            tooltip: 'Copy body',
+            icon: const Icon(Icons.copy),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: widget.body));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Copied to clipboard')),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'status=${widget.status ?? '—'}    ${widget.durationMs}ms',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                if (widget.error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0),
+                    child: Text(
+                      'ERROR',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            Expanded(
+              child: Scrollbar(
+                controller: _scroll,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  child: SelectableText(
+                    widget.body.isEmpty ? '<empty body>' : widget.body,
+                    style: const TextStyle(fontFamily: 'monospace'),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
