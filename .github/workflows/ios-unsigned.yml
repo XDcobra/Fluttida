@@ -9,6 +9,10 @@ jobs:
   build-ios-unsigned:
     runs-on: macos-14
 
+    defaults:
+      run:
+        working-directory: example_app/fluttida
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,18 +48,14 @@ jobs:
             target = proj.targets.find { |t| t.name == 'Runner' }
             raise "Runner target not found" unless target
 
-            # Ensure we have a "Runner" group inside the project
             runner_group = proj.main_group.find_subpath('Runner', true)
 
-            # Paths as they exist in the repo (ios/Runner/LegacyCFURLConnection.*)
             h_path = 'Runner/LegacyCFURLConnection.h'
             m_path = 'Runner/LegacyCFURLConnection.m'
 
-            # Add file references if missing
-            h_ref = proj.files.find { |f| f.path == h_path } || runner_group.new_file(h_path)
+            proj.files.find { |f| f.path == h_path } || runner_group.new_file(h_path)
             m_ref = proj.files.find { |f| f.path == m_path } || runner_group.new_file(m_path)
 
-            # Add .m to the Runner target "Compile Sources" if not already there
             already = target.source_build_phase.files_references.any? { |fr| fr.path == m_path }
             unless already
               target.add_file_references([m_ref])
@@ -67,17 +67,13 @@ jobs:
             proj.save
           RUBY
 
-      # Optional sanity check: show that the file is now referenced in pbxproj
       - name: Verify pbxproj contains LegacyCFURLConnection
         run: |
-          grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj || (echo "Not found after patch!" && exit 1)
+          grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj
 
-      # --- Build unsigned (device build, but without codesign) ---
       - name: Build iOS (release, no codesign)
-        run: |
-          flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign
 
-      # --- Create a pseudo IPA by zipping Payload/Runner.app ---
       - name: Create unsigned IPA from .app (Payload zip)
         run: |
           APP_DIR="build/ios/iphoneos/Runner.app"
@@ -98,15 +94,14 @@ jobs:
 
           ls -la build/ios/ipa
 
-      # --- Upload artifacts ---
       - name: Upload Runner.app
         uses: actions/upload-artifact@v4
         with:
           name: Fluttida-Runner-app
-          path: build/ios/iphoneos/Runner.app
+          path: example_app/fluttida/build/ios/iphoneos/Runner.app
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
           name: Fluttida-unsigned-ipa
-          path: build/ios/ipa/Fluttida-unsigned.ipa
+          path: example_app/fluttida/build/ios/ipa/Fluttida-unsigned.ipa
