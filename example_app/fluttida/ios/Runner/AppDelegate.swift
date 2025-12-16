@@ -34,9 +34,17 @@ import Flutter
       DispatchQueue.global(qos: .userInitiated).async {
         do {
           var response: URLResponse?
+
+          // URLRequest (Swift native)
+          let url = URL(string: urlString)!
+          var req = URLRequest(url: url)
+          req.httpMethod = "GET"
+          req.setValue("Fluttida/1.0 (legacy)", forHTTPHeaderField: "User-Agent")
+
+          // NSURLConnection expects URLRequest
           let data = try NSURLConnection.sendSynchronousRequest(req, returning: &response)
 
-          // Additionally: trigger CFURLConnectionCreateWithRequest (creation only)
+          // For CFURLConnection creation: bridge to NSURLRequest
           let nsReq = req as NSURLRequest
           FluttidaCreateCFURLConnection(nsReq)
 
@@ -53,6 +61,7 @@ import Flutter
           }
         }
       }
+
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
