@@ -54,9 +54,25 @@ class StacksImpl {
       final uri = Uri.parse(cfg.url);
       final req = await client.openUrl(cfg.method, uri);
 
-      cfg.headers.forEach((k, v) => req.headers.set(k, v));
-      if (cfg.body != null && cfg.body!.isNotEmpty) {
-        req.add(utf8.encode(cfg.body!));
+      // Apply headers but avoid honoring an explicit Content-Length or Transfer-Encoding
+      // from the UI because it can conflict with the actual body we write below.
+      cfg.headers.forEach((k, v) {
+        final lk = k.toLowerCase();
+        if (lk == 'content-length' || lk == 'transfer-encoding') return;
+        req.headers.set(k, v);
+      });
+
+      // Only send a body for non-GET/HEAD methods and when a body is provided.
+      final bodyBytes = (cfg.body != null && cfg.body!.isNotEmpty &&
+              cfg.method.toUpperCase() != 'GET' && cfg.method.toUpperCase() != 'HEAD')
+          ? utf8.encode(cfg.body!)
+          : null;
+
+      if (bodyBytes != null) {
+        // Ensure HttpClient knows the correct content length to avoid
+        // "Content size exceed specified contentLength" errors.
+        req.contentLength = bodyBytes.length;
+        req.add(bodyBytes);
       }
 
       final resp = await req.close();
@@ -363,15 +379,28 @@ class StacksImpl {
         }
 
         if (loadMethod != null) {
-          await controller.loadRequest(
-            uri,
-            method: loadMethod,
-            headers: cfg.headers,
-            body: cfg.body != null
-                ? Uint8List.fromList(utf8.encode(cfg.body!))
-                : null,
-          );
-          loaded = true;
+          // Prefer constructing a LoadRequest object (newer webview_flutter API)
+          // This ensures headers/body/method are forwarded reliably.
+          try {
+            final bodyBytes = cfg.body != null ? Uint8List.fromList(utf8.encode(cfg.body!)) : null;
+            final req = LoadRequest(
+              uri: uri,
+              method: loadMethod,
+              headers: cfg.headers.isEmpty ? null : cfg.headers,
+              body: bodyBytes,
+            );
+            await controller.loadRequest(req);
+            loaded = true;
+          } catch (_) {
+            // Fall back to older overload which accepts params directly.
+            await controller.loadRequest(
+              uri,
+              method: loadMethod,
+              headers: cfg.headers,
+              body: cfg.body != null ? Uint8List.fromList(utf8.encode(cfg.body!)) : null,
+            );
+            loaded = true;
+          }
         }
       } catch (_) {
         // ignore; will fallback below
@@ -390,8 +419,40 @@ class StacksImpl {
           final result = await controller.runJavaScriptReturningResult(
             'document.documentElement.outerHTML',
           );
+
           if (result is String) {
-            html = result;
+            var candidate = result;
+            // If result looks like a quoted JS string literal or contains
+            // escaped unicode sequences, try JSON decode to unescape it.
+            if ((candidate.startsWith('"') && candidate.endsWith('"')) ||
+                candidate.contains(r'\\u') ||
+                candidate.contains(r'\\n') ||
+                candidate.contains(r'\\t')) {
+              try {
+                final decoded = json.decode(candidate);
+                if (decoded is String) {
+                  html = decoded;
+                } else {
+                  html = candidate;
+                }
+              } catch (_) {
+                // Fallback: replace common escaped sequences
+                html = candidate
+                    .replaceAll(r'\\n', '\n')
+                    .replaceAll(r'\\t', '\t')
+                    .replaceAll(r'\\"', '"');
+              }
+            } else if (candidate.contains(r'\\u')) {
+              // try simple unicode unescape via json decode wrapper
+              try {
+                final decoded = json.decode('"' + candidate + '"');
+                if (decoded is String) html = decoded; else html = candidate;
+              } catch (_) {
+                html = candidate;
+              }
+            } else {
+              html = candidate;
+            }
           } else if (result != null) {
             html = result.toString();
           }

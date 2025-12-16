@@ -17,7 +17,7 @@ class RequestConfig {
 
   const RequestConfig({
     required this.url,
-    this.method = "GET",
+    this.method = "POST",
     this.headers = const {},
     this.body,
     this.timeout = const Duration(seconds: 20),
@@ -367,7 +367,7 @@ class _LabScreenState extends State<LabScreen> {
   late final WebViewController _webViewController;
 
   final _urlController = TextEditingController();
-  String _method = "GET";
+  String _method = "POST";
   final _bodyController = TextEditingController();
   final _headersController = TextEditingController();
   int _timeoutSeconds = 20;
@@ -377,6 +377,10 @@ class _LabScreenState extends State<LabScreen> {
     super.initState();
 
     _urlController.text = widget.initialUrl;
+
+    // Provide default examples for quick testing
+    _bodyController.text = '{"example":"hello world","count":1}';
+    _headersController.text = '{"Content-Type":"application/json","X-Api-Key":"abc123"}';
 
     ctrl = LabController(config: RequestConfig(url: widget.initialUrl));
 
