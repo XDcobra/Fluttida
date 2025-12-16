@@ -26,35 +26,43 @@ import Flutter
         return
       }
 
-      var req = URLRequest(url: url)
-      req.httpMethod = "GET"
-      req.setValue("Fluttida/1.0 (NSURLConnection)", forHTTPHeaderField: "User-Agent")
+      let method = (args["method"] as? String) ?? "GET"
+      let headers = (args["headers"] as? [String: String]) ?? [:]
+      let bodyStr = args["body"] as? String
+      let timeoutMs = (args["timeoutMs"] as? Int) ?? 20000
 
-      // Run in background (sync request must not block main thread)
+      var req = URLRequest(url: url)
+      req.httpMethod = method
+      req.timeoutInterval = Double(timeoutMs) / 1000.0
+      headers.forEach { k, v in req.setValue(v, forHTTPHeaderField: k) }
+      if let bodyStr, !bodyStr.isEmpty {
+        req.httpBody = bodyStr.data(using: .utf8)
+      }
+
       DispatchQueue.global(qos: .userInitiated).async {
+        let start = Date()
         do {
           var response: URLResponse?
-
-          // NSURLConnection expects URLRequest
           let data = try NSURLConnection.sendSynchronousRequest(req, returning: &response)
 
-          // For CFURLConnection creation: bridge to NSURLRequest
-          FluttidaCreateCFURLConnection(req)
+          // CFURLConnection trigger (needs NSURLRequest)
+          FluttidaCreateCFURLConnection(req as NSURLRequest)
 
           let httpResp = response as? HTTPURLResponse
           let status = httpResp?.statusCode ?? -1
           let body = String(data: data, encoding: .utf8) ?? ""
+          let ms = Int(Date().timeIntervalSince(start) * 1000)
 
           DispatchQueue.main.async {
-            result(["status": status, "body": body])
+            result(["status": status, "body": body, "durationMs": ms])
           }
         } catch {
+          let ms = Int(Date().timeIntervalSince(start) * 1000)
           DispatchQueue.main.async {
-            result(FlutterError(code: "legacy_failed", message: "\(error)", details: nil))
+            result(["status": NSNull(), "body": "", "durationMs": ms, "error": "\(error)"])
           }
         }
       }
-
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
