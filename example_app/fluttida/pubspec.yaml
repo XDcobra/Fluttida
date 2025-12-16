@@ -9,6 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  cupertino_http: ^2.4.0
+  http: ^1.2.2
+  webview_flutter: ^4.10.0
 
 dev_dependencies:
   flutter_test:
