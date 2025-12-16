@@ -1,8 +1,21 @@
 # Fluttida (Network Stack Lab)
 
-![Flutter](https://img.shields.io/badge/Flutter-3.x-blue?style=flat&logo=flutter)
-![Frida](https://img.shields.io/badge/Frida-17.x-red?style=flat&logo=frida)
-![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android-lightgrey?style=flat)
+<div style="display:flex;gap:8px;align-items:flex-start;">
+	<img src="docs/images/main_screen.png" alt="Fluttida Main screen" style="width:33%;height:auto;border-radius:8px;" />
+	<img src="docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:33%;height:auto;border-radius:8px;" />
+	<img src="docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:33%;height:auto;border-radius:8px;" />
+</div>
+
+<br>
+
+<div align="center">
+  <p>
+    <img src="https://img.shields.io/badge/Flutter-3.x-blue?style=flat&logo=flutter" alt="Flutter Version" />
+    <img src="https://img.shields.io/badge/Frida-17.x-red?style=flat&logo=frida" alt="Frida Version" />
+    <img src="https://img.shields.io/badge/Platform-iOS%20%7C%20Android-lightgrey?style=flat" alt="Platform" />
+  </p>
+</div>
+
 
 Fluttida is a small Flutter-based network stack lab and test playground. It helps you run the same HTTP request through multiple networking implementations (Dart and native platform stacks), inspect and compare results, and evaluate behavior under instrumentation. It works on both iOS and Android.
 
@@ -10,17 +23,21 @@ Fluttida is a small Flutter-based network stack lab and test playground. It help
 
 Fluttida runs on both supported mobile platforms. The table below highlights availability per OS:
 
+<div align="center">
+
 | Feature / Stack | iOS | Android |
 |---|:--:|:--:|
-| dart:io HttpClient | ✅ | ✅ |
-| package:http (default) | ✅ | ✅ |
-| package:http via IOClient | ✅ | ✅ |
-| cupertino_http (NSURLSession) | ✅ | ❌ |
-| iOS legacy NSURLConnection | ✅ | ❌ |
-| Android HttpURLConnection | ❌ | ✅ |
-| Android OkHttp | ❌ | ✅ |
-| Cronet (Android) | ❌ | ✅ |
-| Headless WebView DOM scraping | ✅ | ✅ |
+| dart:io HttpClient | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
+| package:http (default) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
+| package:http via IOClient | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
+| cupertino_http (NSURLSession) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) | ![no](https://img.shields.io/badge/-%E2%9D%8C-red?style=flat) |
+| iOS legacy NSURLConnection | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) | ![no](https://img.shields.io/badge/-%E2%9D%8C-red?style=flat) |
+| Android HttpURLConnection | ![no](https://img.shields.io/badge/-%E2%9D%8C-red?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
+| Android OkHttp | ![no](https://img.shields.io/badge/-%E2%9D%8C-red?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
+| Cronet (Android) | ![no](https://img.shields.io/badge/-%E2%9D%8C-red?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
+| Headless WebView DOM scraping | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
+
+</div>
 
 ## Features
 - Multiple network stacks: `dart:io HttpClient`, `package:http` (default), `package:http` via `IOClient`, `cupertino_http` (NSURLSession on iOS), native iOS legacy connection, Android native stacks (HttpURLConnection, OkHttp, Cronet), and a headless WebView DOM scraper.
