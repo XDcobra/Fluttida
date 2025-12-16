@@ -117,21 +117,37 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build iOS IPA (unsigned / no codesign)
+      - name: Build iOS (release, no codesign)
         run: |
-          flutter build ipa --no-codesign \
+          flutter build ios --release --no-codesign \
             --build-name=${{ env.VERSION }} \
             --build-number=${{ env.BUILD_NUMBER }} \
             --dart-define=APP_VERSION=${{ env.VERSION }} \
-            --dart-define=APP_BUILD_NUMBER=${{ env.BUILD_NUMBER }} || true
-          ls -la build/ios/iphoneos || true
-          ls -la build/ios/ipa || true
+            --dart-define=APP_BUILD_NUMBER=${{ env.BUILD_NUMBER }}
 
-      - name: Upload iOS artifact
+      - name: Create unsigned IPA from .app
+        run: |
+          APP_DIR="build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP_DIR" ]; then
+            echo "Runner.app not found at $APP_DIR"
+            ls -la build/ios/iphoneos || true
+            exit 1
+          fi
+
+          mkdir -p build/ios/ipa/Payload
+          rm -rf build/ios/ipa/Payload/*
+          cp -R "$APP_DIR" build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          zip -r Fluttida-unsigned.ipa Payload
+          cd -
+
+          ls -la build/ios/ipa
+
+      - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
           name: fluttida_${{ env.VERSION }}_ios
-          path: example_app/fluttida/build/ios/ipa/*.ipa
+          path: example_app/fluttida/build/ios/ipa/Fluttida-unsigned.ipa
 
   create-release:
     runs-on: ubuntu-latest
