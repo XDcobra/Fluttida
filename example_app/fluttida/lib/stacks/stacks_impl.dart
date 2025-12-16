@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -15,6 +16,31 @@ import '../lab_screen.dart';
 
 class StacksImpl {
   static const MethodChannel _legacyChannel = MethodChannel('fluttida/network');
+
+  // Normalize native channel maps to RequestResult with safe defaults
+  static RequestResult _fromNativeMap(
+    Map<dynamic, dynamic>? map, {
+    String noResponseError = 'No response from native channel.',
+  }) {
+    if (map == null) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: noResponseError,
+      );
+    }
+    final status = (map['status'] as num?)?.toInt();
+    final body = (map['body'] as String?) ?? '';
+    final durationMs = (map['durationMs'] as num?)?.toInt() ?? 0;
+    final error = map['error'] as String?;
+    return RequestResult(
+      status: status,
+      body: body,
+      durationMs: durationMs,
+      error: error,
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // 1) RAW dart:io HttpClient
@@ -195,24 +221,9 @@ class StacksImpl {
       },
     );
 
-    if (map == null) {
-      return RequestResult(
-        status: null,
-        body: '',
-        durationMs: 0,
-        error: 'No response from native channel.',
-      );
-    }
-
-    final status = (map['status'] as num?)?.toInt();
-    final body = (map['body'] as String?) ?? '';
-    final durationMs = (map['durationMs'] as num?)?.toInt() ?? 0;
-
-    return RequestResult(
-      status: status,
-      body: body,
-      durationMs: durationMs,
-      error: map['error'] as String?,
+    return _fromNativeMap(
+      map,
+      noResponseError: 'No response from native channel.',
     );
   }
 
@@ -240,24 +251,9 @@ class StacksImpl {
           'timeoutMs': cfg.timeout.inMilliseconds,
         });
 
-    if (map == null) {
-      return RequestResult(
-        status: null,
-        body: '',
-        durationMs: 0,
-        error: 'No response from native channel (HttpURLConnection).',
-      );
-    }
-
-    final status = (map['status'] as num?)?.toInt();
-    final body = (map['body'] as String?) ?? '';
-    final durationMs = (map['durationMs'] as num?)?.toInt() ?? 0;
-
-    return RequestResult(
-      status: status,
-      body: body,
-      durationMs: durationMs,
-      error: map['error'] as String?,
+    return _fromNativeMap(
+      map,
+      noResponseError: 'No response from native channel (HttpURLConnection).',
     );
   }
 
@@ -283,24 +279,9 @@ class StacksImpl {
           'timeoutMs': cfg.timeout.inMilliseconds,
         });
 
-    if (map == null) {
-      return RequestResult(
-        status: null,
-        body: '',
-        durationMs: 0,
-        error: 'No response from native channel (OkHttp).',
-      );
-    }
-
-    final status = (map['status'] as num?)?.toInt();
-    final body = (map['body'] as String?) ?? '';
-    final durationMs = (map['durationMs'] as num?)?.toInt() ?? 0;
-
-    return RequestResult(
-      status: status,
-      body: body,
-      durationMs: durationMs,
-      error: map['error'] as String?,
+    return _fromNativeMap(
+      map,
+      noResponseError: 'No response from native channel (OkHttp).',
     );
   }
 
@@ -326,24 +307,9 @@ class StacksImpl {
           'timeoutMs': cfg.timeout.inMilliseconds,
         });
 
-    if (map == null) {
-      return RequestResult(
-        status: null,
-        body: '',
-        durationMs: 0,
-        error: 'No response from native channel (Cronet).',
-      );
-    }
-
-    final status = (map['status'] as num?)?.toInt();
-    final body = (map['body'] as String?) ?? '';
-    final durationMs = (map['durationMs'] as num?)?.toInt() ?? 0;
-
-    return RequestResult(
-      status: status,
-      body: body,
-      durationMs: durationMs,
-      error: map['error'] as String?,
+    return _fromNativeMap(
+      map,
+      noResponseError: 'No response from native channel (Cronet).',
     );
   }
 

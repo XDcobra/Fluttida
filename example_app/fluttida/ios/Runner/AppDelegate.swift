@@ -54,7 +54,7 @@ import Flutter
           let ms = Int(Date().timeIntervalSince(start) * 1000)
 
           DispatchQueue.main.async {
-            result(["status": status, "body": body, "durationMs": ms])
+                result(["status": status, "body": body, "durationMs": ms, "error": NSNull()])
           }
         } catch {
           let ms = Int(Date().timeIntervalSince(start) * 1000)
