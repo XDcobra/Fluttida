@@ -51,7 +51,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fluttida_${{ env.VERSION }}_android
-          path: build/app/outputs/flutter-apk/*.apk
+          path: example_app/fluttida/build/app/outputs/flutter-apk/*.apk
 
   build-ios:
     runs-on: macos-latest
@@ -131,7 +131,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fluttida_${{ env.VERSION }}_ios
-          path: build/ios/ipa/*.ipa
+          path: example_app/fluttida/build/ios/ipa/*.ipa
 
   create-release:
     runs-on: ubuntu-latest
