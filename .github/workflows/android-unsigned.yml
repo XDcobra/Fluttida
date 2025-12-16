@@ -1,0 +1,47 @@
+name: Android unsigned build (.apk)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-android-unsigned:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: example_app/fluttida
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: '3.38.5'
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Build Android APK (release, unsigned)
+        run: |
+          flutter build apk --release
+
+      - name: Gather APK artifacts
+        run: |
+          mkdir -p build/artifacts/android
+          cp build/app/outputs/flutter-apk/*.apk build/artifacts/android/ || true
+          ls -la build/artifacts/android || true
+
+      - name: Upload unsigned APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fluttida-unsigned-apk
+          path: example_app/fluttida/build/artifacts/android/*.apk
