@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'stacks/stacks_impl.dart';
+import 'versions.dart';
 
 enum StackLayer { dart, native, webview, ndk }
 
@@ -529,7 +530,19 @@ class _LabScreenState extends State<LabScreen> {
           length: 3,
           child: Scaffold(
             appBar: AppBar(
-              title: const Text("Fluttida – Network Stack Lab"),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Fluttida – Network Stack Lab"),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2.0),
+                    child: Text(
+                      'v$kAppVersion (build $kBuildNumber)',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
               bottom: const TabBar(
                 tabs: [
                   Tab(text: "Stack"),
