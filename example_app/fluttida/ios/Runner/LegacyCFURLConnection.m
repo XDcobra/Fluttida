@@ -15,7 +15,7 @@ void FluttidaCreateCFURLConnection(NSURLRequest *request) {
         delegate = [FluttidaConnDelegate new];
     });
 
-    // Triggert den NSURLConnection Stack (deprecated, aber vorhanden)
+    // Triggers NSURLConnection Stack (deprecated, but present)
     NSURLConnection *conn = [[NSURLConnection alloc] initWithRequest:request
                                                             delegate:delegate
                                                     startImmediately:YES];
