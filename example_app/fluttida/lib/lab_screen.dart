@@ -655,7 +655,9 @@ class _LabScreenState extends State<LabScreen> {
                                   children: [
                                     Expanded(
                                       child: ElevatedButton(
-                                        onPressed: ctrl.isRunning ? null : _runSelected,
+                                        onPressed: ctrl.isRunning
+                                            ? null
+                                            : _runSelected,
                                         child: const Text('Run Selected'),
                                       ),
                                     ),
@@ -668,7 +670,9 @@ class _LabScreenState extends State<LabScreen> {
                                                 setState(() {
                                                   if (ctrl.selected.isEmpty) {
                                                     for (final s in stacks) {
-                                                      if (s.support().supported) {
+                                                      if (s
+                                                          .support()
+                                                          .supported) {
                                                         ctrl.selected.add(s.id);
                                                       }
                                                     }
@@ -677,9 +681,11 @@ class _LabScreenState extends State<LabScreen> {
                                                   }
                                                 });
                                               },
-                                        child: Text(ctrl.selected.isEmpty
-                                            ? 'Select All'
-                                            : 'Deselect All'),
+                                        child: Text(
+                                          ctrl.selected.isEmpty
+                                              ? 'Select All'
+                                              : 'Deselect All',
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -690,19 +696,21 @@ class _LabScreenState extends State<LabScreen> {
                                             : () {
                                                 // Clear bodies in results
                                                 ctrl.results.forEach((k, v) {
-                                                  ctrl.results[k] = RequestResult(
-                                                    status: v.status,
-                                                    body: '',
-                                                    durationMs: v.durationMs,
-                                                    error: v.error,
-                                                  );
+                                                  ctrl.results[k] =
+                                                      RequestResult(
+                                                        status: v.status,
+                                                        body: '',
+                                                        durationMs:
+                                                            v.durationMs,
+                                                        error: v.error,
+                                                      );
                                                 });
                                                 // Clear input field and parsed config
                                                 setState(() {
                                                   _bodyController.text = '';
                                                 });
-                                                ctrl.config =
-                                                    ctrl.config.copyWith(body: null);
+                                                ctrl.config = ctrl.config
+                                                    .copyWith(body: null);
                                                 ctrl.notifyListeners();
                                                 ctrl.appendLog(
                                                   '>> Clear Body pressed: _bodyController="${_bodyController.text}" ctrl.config.body=${ctrl.config.body == null ? 'null' : 'len=${ctrl.config.body!.length}'}',
@@ -725,7 +733,8 @@ class _LabScreenState extends State<LabScreen> {
                                                 setState(() {
                                                   _headersController.text = '';
                                                 });
-                                                ctrl.config = ctrl.config.copyWith(headers: {});
+                                                ctrl.config = ctrl.config
+                                                    .copyWith(headers: {});
                                                 ctrl.notifyListeners();
                                                 ctrl.appendLog(
                                                   '>> Clear Header pressed: _headersController="${_headersController.text}" ctrl.config.headers=${ctrl.config.headers}',
@@ -751,16 +760,20 @@ class _LabScreenState extends State<LabScreen> {
                                             : () {
                                                 // Clear only status codes (preserve body/duration/error)
                                                 ctrl.results.forEach((k, v) {
-                                                  ctrl.results[k] = RequestResult(
-                                                    status: null,
-                                                    body: v.body,
-                                                    durationMs: v.durationMs,
-                                                    error: v.error,
-                                                  );
+                                                  ctrl.results[k] =
+                                                      RequestResult(
+                                                        status: null,
+                                                        body: v.body,
+                                                        durationMs:
+                                                            v.durationMs,
+                                                        error: v.error,
+                                                      );
                                                 });
                                                 ctrl.notifyListeners();
                                               },
-                                        child: const Text('Clear All Statuscodes'),
+                                        child: const Text(
+                                          'Clear All Statuscodes',
+                                        ),
                                       ),
                                     ),
                                   ],
