@@ -5,10 +5,20 @@
 #include <android/log.h>
 #include <dlfcn.h>
 #include <chrono>
+#include <cstring>
 
 #define LOG_TAG "FluttidaNativeHttp"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+// write callback for libcurl: append received bytes into std::string
+static size_t write_cb_fn(void* ptr, size_t size, size_t nmemb, void* userdata) {
+    size_t total = size * nmemb;
+    if (userdata) {
+        try { ((std::string*)userdata)->append((char*)ptr, total); } catch (...) {}
+    }
+    return total;
+}
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
@@ -70,8 +80,11 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     void* lib = dlopen("libcurl.so", RTLD_NOW);
     if (!lib) {
         auto ms = (int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+        const char* dlerr = dlerror();
         std::string err = std::string("{\"status\":null,\"body\":\"\",\"durationMs\":") + std::to_string(ms) +
-                          ",\"error\":\"libcurl.so not found: ") + dlerror() + "\"}";
+                          ",\"error\":\"libcurl.so not found: ";
+        if (dlerr) err += dlerr;
+        err += "\"}";
         if (jmethod) env->ReleaseStringUTFChars(jmethod, method_c);
         if (jurl) env->ReleaseStringUTFChars(jurl, url_c);
         if (jbody) env->ReleaseStringUTFChars(jbody, body_c);
@@ -120,19 +133,6 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
 
     std::string resp;
 
-    // write callback for libcurl: append received bytes into std::string
-    static size_t write_cb_fn(char* ptr, size_t size, size_t nmemb, void* userdata) {
-        size_t total = size * nmemb;
-        if (userdata) {
-            try {
-                ((std::string*)userdata)->append(ptr, total);
-            } catch (...) {
-                // swallow exceptions in callback
-            }
-        }
-        return total;
-    }
-
     // CURLOPT codes (from curl/curl.h); using literal ints to avoid including headers
     const int CURLOPT_URL = 10002;
     const int CURLOPT_WRITEFUNCTION = 20011;
@@ -149,7 +149,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     const int CURLINFO_RESPONSE_CODE = 2097154;
 
     curl_easy_setopt(curl, CURLOPT_URL, url_c);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb_fn);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);
 
     // method and body
