@@ -333,6 +333,36 @@ class StacksImpl {
   }
 
   // ---------------------------------------------------------------------------
+  // Android native: NDK libcurl via JNI (MethodChannel)
+  // ---------------------------------------------------------------------------
+  static Future<RequestResult> requestAndroidNativeCurl(
+    RequestConfig cfg,
+  ) async {
+    if (!Platform.isAndroid) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: 'Android NDK (libcurl) is Android-only',
+      );
+    }
+
+    final map = await _legacyChannel
+        .invokeMapMethod<String, dynamic>('androidNativeCurl', {
+          'url': cfg.url,
+          'method': cfg.method,
+          'headers': cfg.headers,
+          'body': cfg.body,
+          'timeoutMs': cfg.timeout.inMilliseconds,
+        });
+
+    return _fromNativeMap(
+      map,
+      noResponseError: 'No response from native channel (NDK libcurl).',
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // 6) WebView headless (DOM outerHTML)
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestWebViewHeadless(RequestConfig cfg) async {

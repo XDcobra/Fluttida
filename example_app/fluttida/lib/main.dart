@@ -26,6 +26,7 @@ class MyApp extends StatelessWidget {
         androidHttpUrlConnection: StacksImpl.requestAndroidHttpUrlConnection,
         androidOkHttp: StacksImpl.requestAndroidOkHttp,
         androidCronet: StacksImpl.requestAndroidCronet,
+        androidNativeCurl: StacksImpl.requestAndroidNativeCurl,
         webViewHeadless: StacksImpl.requestWebViewHeadless,
       ),
     );

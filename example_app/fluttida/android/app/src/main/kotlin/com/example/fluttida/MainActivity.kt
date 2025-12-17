@@ -50,6 +50,19 @@ class MainActivity : FlutterActivity() {
 						handleCronetRequest(args, result)
 					}.start()
 				}
+				"androidNativeCurl" -> {
+					val args = call.arguments as? Map<*, *>
+					Thread {
+						val url = (args?.get("url") as? String) ?: ""
+						val method = (args?.get("method") as? String) ?: "GET"
+						val headers = args?.get("headers") as? Map<String, String>
+						val body = args?.get("body") as? String
+						val timeoutMs = (args?.get("timeoutMs") as? Number)?.toInt() ?: 20000
+
+						val map = NativeHttp.perform(method, url, headers, body, timeoutMs)
+						result.success(map)
+					}.start()
+				}
 				else -> result.notImplemented()
 			}
 		}

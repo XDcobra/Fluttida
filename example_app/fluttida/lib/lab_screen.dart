@@ -226,6 +226,8 @@ class LabStacks {
     required Future<RequestResult> Function(RequestConfig) androidOkHttp,
     required Future<RequestResult> Function(RequestConfig) webViewHeadless,
     required Future<RequestResult> Function(RequestConfig) androidCronet,
+    // new: Android NDK (libcurl)
+    required Future<RequestResult> Function(RequestConfig) androidNativeCurl,
   }) {
     SupportInfo iosOnly() => Platform.isIOS
         ? const SupportInfo(true)
@@ -306,6 +308,16 @@ class LabStacks {
         run: androidCronet,
       ),
 
+      // Android NDK (libcurl)
+      StackDefinition(
+        id: "android_ndk_curl",
+        name: "Android NDK (libcurl)",
+        description: "Native C/C++ HTTP via libcurl (JNI).",
+        layer: StackLayer.ndk,
+        support: androidOnly,
+        run: androidNativeCurl,
+      ),
+
       // WebView (we keep visible, but you can disable if it’s flaky on iOS)
       StackDefinition(
         id: "webview_headless",
@@ -354,6 +366,7 @@ class LabScreen extends StatefulWidget {
   // Cronet: will fallback to HttpURLConnection until native handler is implemented
   final Future<RequestResult> Function(RequestConfig) androidCronet;
   final Future<RequestResult> Function(RequestConfig) webViewHeadless;
+  final Future<RequestResult> Function(RequestConfig) androidNativeCurl;
 
   const LabScreen({
     super.key,
@@ -367,6 +380,7 @@ class LabScreen extends StatefulWidget {
     required this.androidOkHttp,
     required this.androidCronet,
     required this.webViewHeadless,
+    required this.androidNativeCurl,
   });
 
   @override
@@ -410,6 +424,9 @@ class _LabScreenState extends State<LabScreen> {
       androidHttpUrlConnection: widget.androidHttpUrlConnection,
       androidOkHttp: widget.androidOkHttp,
       androidCronet: widget.androidCronet,
+      androidNativeCurl: (cfg) async {
+        return StacksImpl.requestAndroidNativeCurl(cfg);
+      },
       webViewHeadless: (cfg) async {
         // Delegate to implementation using the persistent controller
         return StacksImpl.requestWebViewHeadlessWith(_webViewController, cfg);
