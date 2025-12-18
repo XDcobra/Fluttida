@@ -1,0 +1,22 @@
+{
+  // VS Code launch configuration to run the example app with version defines.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter: Run (auto version) & Attach",
+      "request": "attach",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/example_app/fluttida",
+      "deviceId": "${input:deviceId}",
+      "preLaunchTask": "Flutter: Run (auto version)"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "deviceId",
+      "type": "promptString",
+      "description": "Optional device id (leave empty to pick default)",
+      "default": ""
+    }
+  ]
+}
