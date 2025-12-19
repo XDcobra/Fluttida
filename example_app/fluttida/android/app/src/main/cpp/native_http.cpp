@@ -42,6 +42,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
 
     // Convert headers Map<String,String> to vector of strings "Key: Value"
     std::vector<std::string> headers;
+    bool insecure = false; // allow overriding TLS verification via pseudo header: X-Curl-Insecure:true
     if (jheadersMap) {
         jclass mapCls = env->GetObjectClass(jheadersMap);
         jmethodID entrySetMid = env->GetMethodID(mapCls, "entrySet", "()Ljava/util/Set;");
@@ -62,7 +63,12 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
             jstring v = (jstring)env->CallObjectMethod(entry, getValMid);
             const char* kc = k ? env->GetStringUTFChars(k, nullptr) : "";
             const char* vc = v ? env->GetStringUTFChars(v, nullptr) : "";
-            headers.emplace_back(std::string(kc) + ": " + std::string(vc));
+            // special pseudo header to control TLS verification without changing JNI signature
+            if (kc && (std::string(kc) == "X-Curl-Insecure")) {
+                insecure = (std::string(vc) == "true" || std::string(vc) == "1" || std::string(vc) == "TRUE");
+            } else {
+                headers.emplace_back(std::string(kc) + ": " + std::string(vc));
+            }
             if (k) env->ReleaseStringUTFChars(k, kc);
             if (v) env->ReleaseStringUTFChars(v, vc);
             env->DeleteLocalRef(entry);
@@ -98,6 +104,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     typedef void* (*curl_slist_append_t)(void*, const char*);
     typedef void (*curl_slist_free_all_t)(void*);
     typedef int (*curl_easy_getinfo_t)(void*, int, ...);
+    typedef const char* (*curl_easy_strerror_t)(int);
 
     auto curl_easy_init = (curl_easy_init_t)dlsym(lib, "curl_easy_init");
     auto curl_easy_setopt = (curl_easy_setopt_t)dlsym(lib, "curl_easy_setopt");
@@ -106,13 +113,14 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     auto curl_slist_append = (curl_slist_append_t)dlsym(lib, "curl_slist_append");
     auto curl_slist_free_all = (curl_slist_free_all_t)dlsym(lib, "curl_slist_free_all");
     auto curl_easy_getinfo = (curl_easy_getinfo_t)dlsym(lib, "curl_easy_getinfo");
+    auto curl_easy_strerror = (curl_easy_strerror_t)dlsym(lib, "curl_easy_strerror");
 
     if (!curl_easy_init || !curl_easy_setopt || !curl_easy_perform || !curl_easy_cleanup ||
         !curl_slist_append || !curl_slist_free_all || !curl_easy_getinfo) {
         auto ms = (int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
         std::string err = std::string("{\"status\":null,\"body\":\"\",\"durationMs\":") + std::to_string(ms) +
                           ",\"error\":\"libcurl symbols missing\"}";
-        dlclose(lib);
+        // dlclose(lib); // Keep loaded to avoid OpenSSL TLS destructor crash
         if (jmethod) env->ReleaseStringUTFChars(jmethod, method_c);
         if (jurl) env->ReleaseStringUTFChars(jurl, url_c);
         if (jbody) env->ReleaseStringUTFChars(jbody, body_c);
@@ -124,7 +132,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         auto ms = (int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
         std::string err = std::string("{\"status\":null,\"body\":\"\",\"durationMs\":") + std::to_string(ms) +
                           ",\"error\":\"curl_easy_init failed\"}";
-        dlclose(lib);
+        // dlclose(lib); // Keep loaded to avoid OpenSSL TLS destructor crash
         if (jmethod) env->ReleaseStringUTFChars(jmethod, method_c);
         if (jurl) env->ReleaseStringUTFChars(jurl, url_c);
         if (jbody) env->ReleaseStringUTFChars(jbody, body_c);
@@ -179,9 +187,14 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)jtimeoutMs);
     }
 
-    // allow TLS (verify on by default; you can disable for testing)
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    // TLS verification (on by default; can be disabled via X-Curl-Insecure:true)
+    if (insecure) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    } else {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    }
 
     int rc = curl_easy_perform(curl);
     long status = -1;
@@ -189,7 +202,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
 
     if (header_list) curl_slist_free_all(header_list);
     curl_easy_cleanup(curl);
-    dlclose(lib);
+    // dlclose(lib); // Keep loaded to avoid OpenSSL TLS destructor crash
 
     int durationMs = (int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
 
@@ -211,8 +224,27 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         out << "\",";
         out << "\"durationMs\":" << durationMs << ",\"error\":null}";
     } else {
-        out << "{\"status\":null,\"body\":\"\",\"durationMs\":" << durationMs
-            << ",\"error\":\"curl_easy_perform rc=" << rc << "\"}";
+        out << "{\"status\":null,\"body\":\"\",\"durationMs\":" << durationMs << ",\"error\":\"curl_easy_perform rc=" << rc;
+        if (curl_easy_strerror) {
+            const char* es = curl_easy_strerror(rc);
+            if (es) {
+                out << " (";
+                // minimal JSON escape for the error string
+                for (const char* p = es; *p; ++p) {
+                    char c = *p;
+                    switch (c) {
+                        case '\\': out << "\\\\"; break;
+                        case '"': out << "\\\""; break;
+                        case '\n': out << "\\n"; break;
+                        case '\r': out << "\\r"; break;
+                        case '\t': out << "\\t"; break;
+                        default: out << c; break;
+                    }
+                }
+                out << ")";
+            }
+        }
+        out << "\"}";
     }
 
     if (jmethod) env->ReleaseStringUTFChars(jmethod, method_c);
