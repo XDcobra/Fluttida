@@ -43,6 +43,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     // Convert headers Map<String,String> to vector of strings "Key: Value"
     std::vector<std::string> headers;
     bool insecure = false; // allow overriding TLS verification via pseudo header: X-Curl-Insecure:true
+    std::string caInfoPath; // allow overriding CA bundle path via X-Curl-CaInfo: /path/to/cacert.pem
     if (jheadersMap) {
         jclass mapCls = env->GetObjectClass(jheadersMap);
         jmethodID entrySetMid = env->GetMethodID(mapCls, "entrySet", "()Ljava/util/Set;");
@@ -66,6 +67,8 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
             // special pseudo header to control TLS verification without changing JNI signature
             if (kc && (std::string(kc) == "X-Curl-Insecure")) {
                 insecure = (std::string(vc) == "true" || std::string(vc) == "1" || std::string(vc) == "TRUE");
+            } else if (kc && (std::string(kc) == "X-Curl-CaInfo")) {
+                caInfoPath = vc ? std::string(vc) : std::string();
             } else {
                 headers.emplace_back(std::string(kc) + ": " + std::string(vc));
             }
@@ -153,6 +156,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     const int CURLOPT_TIMEOUT_MS = 155;
     const int CURLOPT_SSL_VERIFYPEER = 64;
     const int CURLOPT_SSL_VERIFYHOST = 81;
+    const int CURLOPT_CAINFO = 10065; // string: path to CA bundle file
 
     const int CURLINFO_RESPONSE_CODE = 2097154;
 
@@ -194,6 +198,11 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     } else {
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    }
+
+    // Optional CA bundle override
+    if (!caInfoPath.empty()) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, caInfoPath.c_str());
     }
 
     int rc = curl_easy_perform(curl);

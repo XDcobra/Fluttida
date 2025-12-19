@@ -22,6 +22,9 @@ import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import android.os.Handler
 import android.os.Looper
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 
 class MainActivity : FlutterActivity() {
 	private val CHANNEL = "fluttida/network"
@@ -55,9 +58,17 @@ class MainActivity : FlutterActivity() {
 					Thread {
 						val url = (args?.get("url") as? String) ?: ""
 						val method = (args?.get("method") as? String) ?: "GET"
-						val headers = args?.get("headers") as? Map<String, String>
+						val headers = (args?.get("headers") as? Map<String, String>)?.toMutableMap() ?: mutableMapOf()
 						val body = args?.get("body") as? String
 						val timeoutMs = (args?.get("timeoutMs") as? Number)?.toInt() ?: 20000
+
+						// If a bundled CA exists as asset, copy once to cache/files and pass path via pseudo-header
+						try {
+							val caPath = ensureCaBundle()
+							if (caPath != null && headers.keys.none { it.equals("X-Curl-CaInfo", ignoreCase = true) }) {
+								headers["X-Curl-CaInfo"] = caPath
+							}
+						} catch (_: Throwable) { }
 
 						val map = NativeHttp.perform(method, url, headers, body, timeoutMs)
 						result.success(map)
@@ -65,6 +76,33 @@ class MainActivity : FlutterActivity() {
 				}
 				else -> result.notImplemented()
 			}
+		}
+	}
+
+	// Copy assets/cacert.pem to a readable path and return its absolute path, or null if asset missing
+	private fun ensureCaBundle(): String? {
+		val assetName = "cacert.pem"
+		return try {
+			// Check if asset exists
+			val am = assets
+			var input: InputStream? = null
+			try {
+				input = am.open(assetName)
+			} catch (_: Throwable) {
+				return null
+			}
+			input?.use {
+				val outFile = File(cacheDir, assetName)
+				if (!outFile.exists() || outFile.length() == 0L) {
+					FileOutputStream(outFile).use { fos ->
+						it.copyTo(fos)
+					}
+				}
+				return outFile.absolutePath
+			}
+			null
+		} catch (_: Throwable) {
+			null
 		}
 	}
 
