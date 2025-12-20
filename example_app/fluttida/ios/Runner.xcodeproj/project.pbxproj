@@ -558,8 +558,8 @@
 					"@executable_path/Frameworks",
 				);
 				HEADER_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Frameworks/libcurl.xcframework/ios-arm64/Headers",
-					"$(PROJECT_DIR)/Frameworks/libcurl.xcframework/ios-arm64_x86_64-simulator/Headers",
+					"$(PROJECT_DIR)/Runner/Frameworks/libcurl.xcframework/ios-arm64/Headers",
+					"$(PROJECT_DIR)/Runner/Frameworks/libcurl.xcframework/ios-arm64_x86_64-simulator/Headers",
 					"$(inherited)",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.fluttida;
@@ -585,8 +585,8 @@
 					"@executable_path/Frameworks",
 				);
 				HEADER_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Frameworks/libcurl.xcframework/ios-arm64/Headers",
-					"$(PROJECT_DIR)/Frameworks/libcurl.xcframework/ios-arm64_x86_64-simulator/Headers",
+					"$(PROJECT_DIR)/Runner/Frameworks/libcurl.xcframework/ios-arm64/Headers",
+					"$(PROJECT_DIR)/Runner/Frameworks/libcurl.xcframework/ios-arm64_x86_64-simulator/Headers",
 					"$(inherited)",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.fluttida;
