@@ -78,9 +78,12 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
 
-    // TLS Verification (Secure Transport is used by default in our build)
-    // We can expose an insecure toggle if needed via headers, similar to Android
-    // For now, we default to secure.
+    // TLS Verification with bundled CA (cacert.pem in Runner/Resources)
+    NSString *caPath = [[NSBundle mainBundle] pathForResource:@"cacert" ofType:@"pem"];
+    if (caPath) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, [caPath UTF8String]);
+    }
+    // Keep verification ON
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
