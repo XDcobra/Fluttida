@@ -145,3 +145,27 @@ frida -U -n YourApp -l intercept_dartio.js
 
 3. Use the app UI to run requests across different stacks and inspect the Results/Logs to confirm whether your hooks or proxying are working as intended.
 
+### Native libcurl stacks (Android NDK and iOS)
+
+The lab app also includes native libcurl stacks to compare behavior outside the platform HTTP clients:
+
+- Android NDK (libcurl)
+  - Place your prebuilt `libcurl.so` under:
+    - `example_app/fluttida/android/app/src/main/jniLibs/arm64-v8a/libcurl.so`
+    - (optional) `example_app/fluttida/android/app/src/main/jniLibs/armeabi-v7a/libcurl.so`
+  - TLS verification is enabled by default. To ship a CA bundle, add `cacert.pem` to:
+    - `example_app/fluttida/android/app/src/main/assets/cacert.pem`
+    - The app copies it to a readable path and sets `CURLOPT_CAINFO` via a pseudo header (`X-Curl-CaInfo`).
+  - Debug-only override: set header `X-Curl-Insecure: true` to disable verification (never use in production).
+  - In the app, select the stack "Android NDK (libcurl)".
+
+- iOS Native (libcurl XCFramework)
+  - Place the XCFramework under:
+    - `example_app/fluttida/ios/Frameworks/libcurl.xcframework`
+  - The project is wired to link this XCFramework and expose a method channel stack named "iOS Native (libcurl)".
+  - Built against Apple Secure Transport (DarwinSSL): no OpenSSL dependency required.
+  - If you build your own XCFramework, ensure device (arm64) and simulator (arm64/x86_64) slices are present.
+
+Licenses
+- The app includes license files under the XCFramework (e.g., `licenses/COPYING-curl.txt`). Keep third‑party license texts with distributed binaries.
+
