@@ -55,6 +55,7 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 | Android HttpURLConnection        | N/A                                                                              | Coming soon                                                                       | N/A                                                         | Coming soon                                                    |
 | Android OkHttp                   | N/A                                                                              | Coming soon                                                                       | N/A                                                         | Coming soon                                                    |
 | Android Cronet (embedded)        | N/A                                                                              | Coming soon                                                                       | N/A                                                         | Coming soon                                                    |
+| libcurl (native)                 | Coming soon                                                                              | Coming soon                                                                                | Coming soon                      | Coming soon                         |
 
 </div>
 ---
@@ -138,10 +139,50 @@ flutter run
 ```bash
 # list processes and attach by name or PID
 frida-ps -Uai
-frida -U -n YourApp -l frida_detect_engine/check_dartio.js
+frida -U -n Fluttida -l frida_detect_engine/check_dartio.js
 # or to intercept
-frida -U -n YourApp -l intercept_dartio.js
+frida -U -n Fluttida -l intercept_dartio.js
 ```
 
 3. Use the app UI to run requests across different stacks and inspect the Results/Logs to confirm whether your hooks or proxying are working as intended.
+
+### Native libcurl stacks (Android NDK and iOS)
+
+The lab app also includes native libcurl stacks to compare behavior outside the platform HTTP clients:
+
+- Android NDK (libcurl)
+  - Place your prebuilt `libcurl.so` under:
+    - `example_app/fluttida/android/app/src/main/jniLibs/arm64-v8a/libcurl.so`
+    - (optional) `example_app/fluttida/android/app/src/main/jniLibs/armeabi-v7a/libcurl.so`
+  - TLS verification is enabled by default. To ship a CA bundle, add `cacert.pem` to:
+    - `example_app/fluttida/android/app/src/main/assets/cacert.pem`
+    - The app copies it to a readable path and sets `CURLOPT_CAINFO` via a pseudo header (`X-Curl-CaInfo`).
+  - Debug-only override: set header `X-Curl-Insecure: true` to disable verification (never use in production).
+  - In the app, select the stack "Android NDK (libcurl)".
+
+- iOS Native (libcurl XCFramework)
+  - Place the XCFramework under:
+    - `example_app/fluttida/ios/Frameworks/libcurl.xcframework`
+  - The project is wired to link this XCFramework and expose a method channel stack named "iOS Native (libcurl)".
+  - Build variants:
+    - Secure Transport (DarwinSSL): libcurl can be built against the Apple TLS stack and will use the system trust store (no OpenSSL files required).
+    - OpenSSL (static): the repo also supports building libcurl against OpenSSL. If you use the OpenSSL variant, you must bundle the OpenSSL static libraries and a CA bundle with the app (instructions below).
+  - If you build your own XCFramework, ensure device (arm64) and simulator (arm64/x86_64) slices are present.
+
+  OpenSSL (static) packaging (when libcurl was built with OpenSSL):
+
+  - Copy these static libs into the app so the app can link at build time:
+    - `example_app/fluttida/ios/Runner/Frameworks/OpenSSL-static/iphoneos/libssl.a`
+    - `example_app/fluttida/ios/Runner/Frameworks/OpenSSL-static/iphoneos/libcrypto.a`
+    - `example_app/fluttida/ios/Runner/Frameworks/OpenSSL-static/iphonesimulator/libssl.a`
+    - `example_app/fluttida/ios/Runner/Frameworks/OpenSSL-static/iphonesimulator/libcrypto.a`
+
+  - CA bundle: add a CA bundle (for example `cacert.pem` from curl) to:
+    - `example_app/fluttida/ios/Runner/Resources/cacert.pem`
+    The app sets `CURLOPT_CAINFO` to the bundled `cacert.pem` at runtime (see `NativeHttp.mm`). Ensure the file is included in the Runner target's "Copy Bundle Resources" so it is available at runtime.
+
+  - Project wiring: the project has been updated to add library search paths and link flags for the `OpenSSL-static` folders and to copy `cacert.pem` into the app bundle. If you prefer, you can instead add the four `.a` files as file references under the Runner target.
+
+Licenses
+- The app includes license files under the XCFramework (e.g., `licenses/COPYING-curl.txt`). Keep third‑party license texts with distributed binaries.
 

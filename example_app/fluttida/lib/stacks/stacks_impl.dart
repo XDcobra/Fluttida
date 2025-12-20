@@ -333,6 +333,36 @@ class StacksImpl {
   }
 
   // ---------------------------------------------------------------------------
+  // Android native: NDK libcurl via JNI (MethodChannel)
+  // ---------------------------------------------------------------------------
+  static Future<RequestResult> requestAndroidNativeCurl(
+    RequestConfig cfg,
+  ) async {
+    if (!Platform.isAndroid) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: 'Android NDK (libcurl) is Android-only',
+      );
+    }
+
+    final map = await _legacyChannel
+        .invokeMapMethod<String, dynamic>('androidNativeCurl', {
+          'url': cfg.url,
+          'method': cfg.method,
+          'headers': cfg.headers,
+          'body': cfg.body,
+          'timeoutMs': cfg.timeout.inMilliseconds,
+        });
+
+    return _fromNativeMap(
+      map,
+      noResponseError: 'No response from native channel (NDK libcurl).',
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // 6) WebView headless (DOM outerHTML)
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestWebViewHeadless(RequestConfig cfg) async {
@@ -470,6 +500,29 @@ class StacksImpl {
         status: null,
         body: "",
         durationMs: sw.elapsedMilliseconds,
+        error: e.toString(),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // iOS Native (libcurl via Secure Transport)
+  // ---------------------------------------------------------------------------
+  static Future<RequestResult> requestIosNativeCurl(RequestConfig cfg) async {
+    try {
+      final result = await _legacyChannel.invokeMethod<Map>('iosNativeCurl', {
+        'method': cfg.method,
+        'url': cfg.url,
+        'headers': cfg.headers,
+        'body': cfg.body,
+        'timeoutMs': cfg.timeout.inMilliseconds,
+      });
+      return _fromNativeMap(result);
+    } catch (e) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
         error: e.toString(),
       );
     }

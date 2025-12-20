@@ -22,3 +22,8 @@
 
 # You can also merge the generated missing_rules.txt contents here if available
 # (see build/app/outputs/mapping/release/missing_rules.txt) for more specific rules.
+
+# Keep JNI native methods to avoid stripping bridge names
+-keepclasseswithmembernames class * {
+	native <methods>;
+}

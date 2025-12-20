@@ -12,6 +12,35 @@ import Flutter
     let channel = FlutterMethodChannel(name: "fluttida/network", binaryMessenger: controller.binaryMessenger)
 
     channel.setMethodCallHandler { call, result in
+      if call.method == "iosNativeCurl" {
+        guard
+          let args = call.arguments as? [String: Any],
+          let urlStr = args["url"] as? String
+        else {
+          result(FlutterError(code: "bad_args", message: "Missing/invalid arguments", details: nil))
+          return
+        }
+
+        let method = (args["method"] as? String) ?? "GET"
+        let headers = (args["headers"] as? [String: String]) ?? [:]
+        let bodyStr = args["body"] as? String
+        let timeoutMs = (args["timeoutMs"] as? NSNumber) ?? NSNumber(value: 20000)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+          let resultDict = NativeHttp.performRequest(
+            method,
+            url: urlStr,
+            headers: headers,
+            body: bodyStr,
+            timeoutMs: timeoutMs
+          )
+          DispatchQueue.main.async {
+            result(resultDict)
+          }
+        }
+        return
+      }
+
       guard call.method == "legacyRequest" else {
         result(FlutterMethodNotImplemented)
         return
