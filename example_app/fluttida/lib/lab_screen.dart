@@ -321,7 +321,7 @@ class LabStacks {
       ),
 
       StackDefinition(
-        id: "ios_ndk_curl",
+        id: "ios_native_curl",
         name: "iOS Native (libcurl + Secure Transport)",
         description: "Native C HTTP via libcurl + Secure Transport (FFI).",
         layer: StackLayer.ndk,
