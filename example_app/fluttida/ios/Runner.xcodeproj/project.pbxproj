@@ -16,7 +16,7 @@
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		E0C1D2E41E00000000400000 /* libcurl.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0C1D2E31E00000000400000 /* libcurl.xcframework */; };
 		E0C1D2E61E00000000400001 /* NativeHttp.mm in Sources */ = {isa = PBXBuildFile; fileRef = E0C1D2E51E00000000400001 /* NativeHttp.mm */; };
-        E0C1D3001E00000000400020 /* OpenSSL.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0C1D2FF1E0000000040001F /* OpenSSL.xcframework */; };
+        
         
 /* End PBXBuildFile section */
 
@@ -61,7 +61,7 @@
 		E0C1D2E31E00000000400000 /* libcurl.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libcurl.xcframework; path = Frameworks/libcurl.xcframework; sourceTree = "<group>"; };
 		E0C1D2E51E00000000400001 /* NativeHttp.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = NativeHttp.mm; sourceTree = "<group>"; };
 		E0C1D2E71E00000000400002 /* NativeHttp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NativeHttp.h; sourceTree = "<group>"; };
-        E0C1D2FF1E0000000040001F /* OpenSSL.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = OpenSSL.xcframework; path = Frameworks/OpenSSL.xcframework; sourceTree = "<group>"; };
+        
         
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -72,7 +72,7 @@
 			buildActionMask = 2147483647;
  			files = (
  				E0C1D2E41E00000000400000 /* libcurl.xcframework in Frameworks */,
-                E0C1D3001E00000000400020 /* OpenSSL.xcframework in Frameworks */,
+                 
                 
  			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -130,7 +130,7 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				E0C1D2E31E00000000400000 /* libcurl.xcframework */,
-                E0C1D2FF1E0000000040001F /* OpenSSL.xcframework */,
+                
 				E0C1D2E51E00000000400001 /* NativeHttp.mm */,
 				E0C1D2E71E00000000400002 /* NativeHttp.h */,
 			);
