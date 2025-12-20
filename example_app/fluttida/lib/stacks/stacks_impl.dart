@@ -504,4 +504,27 @@ class StacksImpl {
       );
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // iOS Native (libcurl via Secure Transport)
+  // ---------------------------------------------------------------------------
+  static Future<RequestResult> requestIosNativeCurl(RequestConfig cfg) async {
+    try {
+      final result = await _legacyChannel.invokeMethod<Map>('iosNativeCurl', {
+        'method': cfg.method,
+        'url': cfg.url,
+        'headers': cfg.headers,
+        'body': cfg.body,
+        'timeoutMs': cfg.timeout.inMilliseconds,
+      });
+      return _fromNativeMap(result);
+    } catch (e) {
+      return RequestResult(
+        status: null,
+        body: '',
+        durationMs: 0,
+        error: e.toString(),
+      );
+    }
+  }
 }
