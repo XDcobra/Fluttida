@@ -55,6 +55,7 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 | Android HttpURLConnection        | N/A                                                                              | Coming soon                                                                       | N/A                                                         | Coming soon                                                    |
 | Android OkHttp                   | N/A                                                                              | Coming soon                                                                       | N/A                                                         | Coming soon                                                    |
 | Android Cronet (embedded)        | N/A                                                                              | Coming soon                                                                       | N/A                                                         | Coming soon                                                    |
+| libcurl (native)                 | Coming soon                                                                              | Coming soon                                                                                | Coming soon                      | Coming soon                         |
 
 </div>
 ---
