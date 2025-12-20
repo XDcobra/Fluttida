@@ -226,7 +226,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-						E0C1D3311E00000000400031 /* cacert.pem */,
 		97C146EC1CF9000F007C117D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
