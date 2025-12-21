@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:flutter/foundation.dart';
 import 'stacks/stacks_impl.dart';
 import 'versions.dart';
 
@@ -423,6 +424,7 @@ class _LabScreenState extends State<LabScreen> {
 
   BannerAd? _bannerAd;
   bool _isBannerReady = false;
+  bool get _adsEnabled => kReleaseMode && !kIsLabApp;
 
   final _urlController = TextEditingController();
   String _method = "POST";
@@ -475,22 +477,9 @@ class _LabScreenState extends State<LabScreen> {
       }
     }
 
-    _bannerAd = BannerAd(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-3940256099942544/2934735716',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() => _isBannerReady = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
-      ),
-    );
-    _bannerAd!.load();
+    if (_adsEnabled) {
+      _loadBannerAd();
+    }
   }
 
   @override
@@ -501,6 +490,27 @@ class _LabScreenState extends State<LabScreen> {
     _bannerAd?.dispose();
     ctrl.dispose();
     super.dispose();
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: Platform.isAndroid
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-3940256099942544/2934735716',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) return;
+          setState(() => _isBannerReady = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+        },
+      ),
+    );
+    _isBannerReady = false;
+    _bannerAd!.load();
   }
 
   void _applyConfig() {
@@ -833,6 +843,7 @@ class _LabScreenState extends State<LabScreen> {
                               ],
                             ),
                           ),
+                          const SizedBox(height: 8),
                           if (ctrl.isRunning &&
                               ctrl.currentStackId != null) ...[
                             const SizedBox(height: 8),
@@ -1017,7 +1028,8 @@ class _LabScreenState extends State<LabScreen> {
                 ),
               ],
             ),
-            bottomNavigationBar: _isBannerReady && _bannerAd != null
+            bottomNavigationBar:
+                _adsEnabled && _isBannerReady && _bannerAd != null
                 ? SafeArea(
                     child: SizedBox(
                       height: _bannerAd!.size.height.toDouble(),
