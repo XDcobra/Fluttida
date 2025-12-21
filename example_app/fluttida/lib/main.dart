@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'lab_screen.dart';
 import 'stacks/stacks_impl.dart';
-import 'versions.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

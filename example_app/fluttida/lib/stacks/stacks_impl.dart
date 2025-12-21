@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -467,18 +465,19 @@ class StacksImpl {
             } else if (candidate.contains(r'\\u')) {
               // try simple unicode unescape via json decode wrapper
               try {
-                final decoded = json.decode('"' + candidate + '"');
-                if (decoded is String)
+                final decoded = json.decode('"$candidate"');
+                if (decoded is String) {
                   html = decoded;
-                else
+                } else {
                   html = candidate;
+                }
               } catch (_) {
                 html = candidate;
               }
             } else {
               html = candidate;
             }
-          } else if (result != null) {
+          } else {
             html = result.toString();
           }
         } catch (_) {
