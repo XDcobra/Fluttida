@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'stacks/stacks_impl.dart';
 import 'versions.dart';
 
@@ -420,6 +421,9 @@ class _LabScreenState extends State<LabScreen> {
   late final List<StackDefinition> stacks;
   late final WebViewController _webViewController;
 
+  BannerAd? _bannerAd;
+  bool _isBannerReady = false;
+
   final _urlController = TextEditingController();
   String _method = "POST";
   final _bodyController = TextEditingController();
@@ -470,6 +474,23 @@ class _LabScreenState extends State<LabScreen> {
         ctrl.selected.add(s.id);
       }
     }
+
+    _bannerAd = BannerAd(
+      adUnitId: Platform.isAndroid
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-3940256099942544/2934735716',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() => _isBannerReady = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+        },
+      ),
+    );
+    _bannerAd!.load();
   }
 
   @override
@@ -477,6 +498,7 @@ class _LabScreenState extends State<LabScreen> {
     _urlController.dispose();
     _bodyController.dispose();
     _headersController.dispose();
+    _bannerAd?.dispose();
     ctrl.dispose();
     super.dispose();
   }
@@ -995,6 +1017,14 @@ class _LabScreenState extends State<LabScreen> {
                 ),
               ],
             ),
+            bottomNavigationBar: _isBannerReady && _bannerAd != null
+                ? SafeArea(
+                    child: SizedBox(
+                      height: _bannerAd!.size.height.toDouble(),
+                      child: AdWidget(ad: _bannerAd!),
+                    ),
+                  )
+                : null,
           ),
         );
       },
