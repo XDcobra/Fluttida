@@ -44,6 +44,8 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     std::vector<std::string> headers;
     bool insecure = false; // allow overriding TLS verification via pseudo header: X-Curl-Insecure:true
     std::string caInfoPath; // allow overriding CA bundle path via X-Curl-CaInfo: /path/to/cacert.pem
+    std::string spkiPinsCsv; // optional pseudo-header X-Curl-SpkiPins: comma-separated base64 pins
+    std::string certPinsCsv; // optional pseudo-header X-Curl-CertPins: comma-separated base64 pins
     if (jheadersMap) {
         jclass mapCls = env->GetObjectClass(jheadersMap);
         jmethodID entrySetMid = env->GetMethodID(mapCls, "entrySet", "()Ljava/util/Set;");
@@ -69,6 +71,10 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
                 insecure = (std::string(vc) == "true" || std::string(vc) == "1" || std::string(vc) == "TRUE");
             } else if (kc && (std::string(kc) == "X-Curl-CaInfo")) {
                 caInfoPath = vc ? std::string(vc) : std::string();
+            } else if (kc && (std::string(kc) == "X-Curl-SpkiPins")) {
+                spkiPinsCsv = vc ? std::string(vc) : std::string();
+            } else if (kc && (std::string(kc) == "X-Curl-CertPins")) {
+                certPinsCsv = vc ? std::string(vc) : std::string();
             } else {
                 headers.emplace_back(std::string(kc) + ": " + std::string(vc));
             }

@@ -8,6 +8,10 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.CertificatePinner
+import java.security.MessageDigest
+import android.util.Base64
+import java.security.cert.X509Certificate
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -29,11 +33,36 @@ import java.io.InputStream
 class MainActivity : FlutterActivity() {
 	private val CHANNEL = "fluttida/network"
 
+	// Global pinning state
+	@Volatile
+	private var globalPinningEnabled: Boolean = false
+	@Volatile
+	private var globalPinningMode: String = "publicKey" // "publicKey" | "certHash"
+	@Volatile
+	private var globalSpkiPins: List<String> = emptyList()
+	@Volatile
+	private var globalCertPins: List<String> = emptyList()
+
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
 
 		MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
 			when (call.method) {
+				"setGlobalPinningConfig" -> {
+					val args = call.arguments as? Map<*, *>
+					val pin = args?.get("pinning") as? Map<*, *>
+					if (pin != null) {
+						globalPinningEnabled = (pin["enabled"] as? Boolean) == true
+						globalPinningMode = (pin["mode"] as? String) ?: "publicKey"
+						globalSpkiPins = (pin["spkiPins"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+						globalCertPins = (pin["certSha256Pins"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+					}
+					result.success(null)
+				}
+				"isCronetPinningSupported" -> {
+					// Cronet public-key pinning support detection: not implemented here
+					result.success(false)
+				}
 				"androidHttpURLConnection" -> {
 					val args = call.arguments as? Map<*, *>
 					Thread {
@@ -70,12 +99,59 @@ class MainActivity : FlutterActivity() {
 							}
 						} catch (_: Throwable) { }
 
+						// Pass global pinning to native curl via pseudo-headers (native layer may use them)
+						try {
+							if (globalPinningEnabled) {
+								if (globalPinningMode == "publicKey" && globalSpkiPins.isNotEmpty() && headers.keys.none { it.equals("X-Curl-SpkiPins", ignoreCase = true) }) {
+									headers["X-Curl-SpkiPins"] = globalSpkiPins.joinToString(",")
+								} else if (globalPinningMode == "certHash" && globalCertPins.isNotEmpty() && headers.keys.none { it.equals("X-Curl-CertPins", ignoreCase = true) }) {
+									headers["X-Curl-CertPins"] = globalCertPins.joinToString(",")
+								}
+							}
+						} catch (_: Throwable) { }
+
 						val map = NativeHttp.perform(method, url, headers, body, timeoutMs)
 						result.success(map)
 					}.start()
 				}
 				else -> result.notImplemented()
 			}
+		}
+	}
+
+	// Normalize a pin string by removing optional "sha256/" prefix and whitespace
+	private fun normalizePin(pin: String): String {
+		var p = pin.trim()
+		if (p.startsWith("sha256/")) p = p.substring(7)
+		return p
+	}
+
+	private fun calcSpkiSha256Base64(cert: X509Certificate): String {
+		val pub = cert.publicKey.encoded
+		val digest = MessageDigest.getInstance("SHA-256").digest(pub)
+		return Base64.encodeToString(digest, Base64.NO_WRAP)
+	}
+
+	private fun calcCertSha256Base64(cert: X509Certificate): String {
+		val der = cert.encoded
+		val digest = MessageDigest.getInstance("SHA-256").digest(der)
+		return Base64.encodeToString(digest, Base64.NO_WRAP)
+	}
+
+	private fun verifyCertPins(cert: X509Certificate): Boolean {
+		return try {
+			if (!globalPinningEnabled) return true
+			if (globalPinningMode == "publicKey") {
+				val spki = calcSpkiSha256Base64(cert)
+				for (p in globalSpkiPins) if (normalizePin(p) == spki) return true
+				false
+			} else {
+				val ch = calcCertSha256Base64(cert)
+				for (p in globalCertPins) if (normalizePin(p) == ch) return true
+				false
+			}
+		} catch (_: Throwable) {
+			false
 		}
 	}
 
@@ -199,6 +275,8 @@ class MainActivity : FlutterActivity() {
 				}
 			}
 
+			// If pinning enabled, and HTTPS, we'll check the peer cert after connect
+
 			headers?.forEach { (k, v) ->
 				if (k is String && v != null) conn.setRequestProperty(k, v.toString())
 			}
@@ -210,6 +288,21 @@ class MainActivity : FlutterActivity() {
 			}
 
 			val status = conn.responseCode
+			// Post-connect pin verification for HTTPS
+			try {
+				if (globalPinningEnabled && conn is javax.net.ssl.HttpsURLConnection) {
+					val certs = conn.serverCertificates
+					if (certs != null && certs.isNotEmpty()) {
+						val x509 = certs[0] as java.security.cert.X509Certificate
+						val ok = verifyCertPins(x509)
+						if (!ok) throw Exception("SSL pinning mismatch")
+					}
+				}
+			} catch (e: Exception) {
+				conn.disconnect()
+				val duration = (System.currentTimeMillis() - start).toInt()
+				return mapOf("status" to null, "body" to "", "durationMs" to duration, "error" to e.toString())
+			}
 			val input = try { conn.inputStream } catch (e: Exception) { conn.errorStream }
 			val bytes = input?.readBytes() ?: ByteArray(0)
 			val respBody = bytes.toString(Charsets.UTF_8)
@@ -233,10 +326,24 @@ class MainActivity : FlutterActivity() {
 			val body = args["body"] as? String
 			val timeoutMs = (args["timeoutMs"] as? Number)?.toLong() ?: 20000L
 
-			val client = OkHttpClient.Builder()
+			val clientBuilder = OkHttpClient.Builder()
 				.connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
 				.readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-				.build()
+
+			// If global pinning enabled and using publicKey mode, configure CertificatePinner
+			if (globalPinningEnabled && globalPinningMode == "publicKey") {
+				try {
+					val host = java.net.URL(url).host
+					val cpb = CertificatePinner.Builder()
+					for (pin in globalSpkiPins) {
+						val p = normalizePin(pin)
+						cpb.add(host, "sha256/" + p)
+					}
+					clientBuilder.certificatePinner(cpb.build())
+				} catch (_: Throwable) { }
+			}
+
+			val client = clientBuilder.build()
 
 			val builder = Request.Builder().url(url)
 			headers?.forEach { (k, v) ->
@@ -254,6 +361,21 @@ class MainActivity : FlutterActivity() {
 			client.newCall(request).execute().use { resp ->
 				val respBody = resp.body?.string() ?: ""
 				val status = resp.code
+
+				// If pinning enabled and using certHash mode, verify the leaf certificate's SHA-256
+				if (globalPinningEnabled && globalPinningMode == "certHash") {
+					try {
+						val peerCerts = resp.handshake?.peerCertificates
+						if (peerCerts != null && peerCerts.isNotEmpty()) {
+							val x509 = peerCerts[0] as java.security.cert.X509Certificate
+							val ok = verifyCertPins(x509)
+							if (!ok) throw Exception("SSL pinning mismatch")
+						}
+					} catch (e: Exception) {
+						throw e
+					}
+				}
+
 				val duration = (System.currentTimeMillis() - start).toInt()
 				return mapOf("status" to status, "body" to respBody, "durationMs" to duration, "error" to null)
 			}
