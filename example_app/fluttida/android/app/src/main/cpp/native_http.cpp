@@ -176,6 +176,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     std::string caInfoPath; // allow overriding CA bundle path via X-Curl-CaInfo: /path/to/cacert.pem
     std::string spkiPinsCsv; // optional pseudo-header X-Curl-SpkiPins: comma-separated base64 pins
     std::string certPinsCsv; // optional pseudo-header X-Curl-CertPins: comma-separated base64 pins
+    std::string curlTechnique; // optional pseudo-header X-Curl-Technique: preflight|sslctx|both
     if (jheadersMap) {
         jclass mapCls = env->GetObjectClass(jheadersMap);
         jmethodID entrySetMid = env->GetMethodID(mapCls, "entrySet", "()Ljava/util/Set;");
@@ -205,6 +206,8 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
                 spkiPinsCsv = vc ? std::string(vc) : std::string();
             } else if (kc && (std::string(kc) == "X-Curl-CertPins")) {
                 certPinsCsv = vc ? std::string(vc) : std::string();
+            } else if (kc && (std::string(kc) == "X-Curl-Technique")) {
+                curlTechnique = vc ? std::string(vc) : std::string();
             } else {
                 headers.emplace_back(std::string(kc) + ": " + std::string(vc));
             }
@@ -341,8 +344,20 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         curl_easy_setopt(curl, CURLOPT_CAINFO, caInfoPath.c_str());
     }
 
-    // If pin pseudo-headers provided, populate global CSVs and register SSL_CTX callback with libcurl
-    if (!spkiPinsCsv.empty() || !certPinsCsv.empty()) {
+    // Decide technique toggles
+    bool want_preflight = false;
+    bool want_sslctx = false;
+    if (!curlTechnique.empty()) {
+        if (curlTechnique == "preflight") want_preflight = true;
+        else if (curlTechnique == "sslctx") want_sslctx = true;
+        else /*both or unknown*/ { want_preflight = true; want_sslctx = true; }
+    } else {
+        // default when pins present and no explicit technique: both
+        want_preflight = true; want_sslctx = true;
+    }
+
+    // If pin pseudo-headers provided and sslctx desired, register SSL_CTX callback with libcurl
+    if ((!spkiPinsCsv.empty() || !certPinsCsv.empty()) && want_sslctx) {
         g_spkiPinsCsv_global = spkiPinsCsv;
         g_certPinsCsv_global = certPinsCsv;
         // CURLOPT_SSL_CTX_FUNCTION = 352, CURLOPT_SSL_CTX_DATA = 353
@@ -350,10 +365,9 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         curl_easy_setopt(curl, 353, nullptr);
     }
 
-    // If pinning pseudo-headers present, do a pre-flight verification by calling back into
-    // Native pre-flight verification using OpenSSL (libssl + libcrypto) if available.
+    // If pinning pseudo-headers present and preflight desired, perform native pre-flight verification
     bool pin_ok = true;
-    if (!spkiPinsCsv.empty() || !certPinsCsv.empty()) {
+    if ((!spkiPinsCsv.empty() || !certPinsCsv.empty()) && want_preflight) {
         // parse host and port
         std::string urlstr(url_c);
         std::string host;

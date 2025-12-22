@@ -43,6 +43,18 @@ class MainActivity : FlutterActivity() {
 	@Volatile
 	private var globalCertPins: List<String> = emptyList()
 
+	// Technique selection
+	@Volatile
+	private var defaultTechnique: String = "auto"
+	@Volatile
+	private var techHttpUrlConnection: String? = null
+	@Volatile
+	private var techOkHttp: String? = null
+	@Volatile
+	private var techNativeCurl: String? = null
+	@Volatile
+	private var techCronet: String? = null
+
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
 
@@ -56,6 +68,19 @@ class MainActivity : FlutterActivity() {
 						globalPinningMode = (pin["mode"] as? String) ?: "publicKey"
 						globalSpkiPins = (pin["spkiPins"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
 						globalCertPins = (pin["certSha256Pins"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+
+						// techniques
+						val techs = pin["techniques"] as? Map<*, *>
+						techs?.let {
+							defaultTechnique = (it["default"] as? String) ?: "auto"
+							val ov = it["overrides"] as? Map<*, *>
+							ov?.let { m ->
+								techHttpUrlConnection = (m["httpUrlConnection"] as? String)
+								techOkHttp = (m["okHttp"] as? String)
+								techNativeCurl = (m["nativeCurl"] as? String)
+								techCronet = (m["cronet"] as? String)
+							}
+						}
 					}
 					result.success(null)
 				}
@@ -99,14 +124,23 @@ class MainActivity : FlutterActivity() {
 							}
 						} catch (_: Throwable) { }
 
-						// Pass global pinning to native curl via pseudo-headers (native layer may use them)
+						// Pass global pinning to native curl via pseudo-headers according to technique
 						try {
-							if (globalPinningEnabled) {
+							val effTech = effectiveNativeCurlTech()
+							if (globalPinningEnabled && effTech != "none") {
 								if (globalPinningMode == "publicKey" && globalSpkiPins.isNotEmpty() && headers.keys.none { it.equals("X-Curl-SpkiPins", ignoreCase = true) }) {
 									headers["X-Curl-SpkiPins"] = globalSpkiPins.joinToString(",")
 								} else if (globalPinningMode == "certHash" && globalCertPins.isNotEmpty() && headers.keys.none { it.equals("X-Curl-CertPins", ignoreCase = true) }) {
 									headers["X-Curl-CertPins"] = globalCertPins.joinToString(",")
 								}
+								// convey technique to native curl: preflight | sslctx | both
+								val techHeader = when (effTech) {
+									"curlPreflight" -> "preflight"
+									"curlSslCtx" -> "sslctx"
+									"curlBoth", "auto" -> "both"
+									else -> null
+								}
+								if (techHeader != null) headers["X-Curl-Technique"] = techHeader
 							}
 						} catch (_: Throwable) { }
 
@@ -334,9 +368,10 @@ class MainActivity : FlutterActivity() {
 			}
 
 			val status = conn.responseCode
-			// Post-connect pin verification for HTTPS
+			// Technique selection: only post-connect supported here
 			try {
-				if (globalPinningEnabled && conn is javax.net.ssl.HttpsURLConnection) {
+				val effTech = effectiveHttpUrlConnTech()
+				if (globalPinningEnabled && effTech != "none" && conn is javax.net.ssl.HttpsURLConnection) {
 					val certs = conn.serverCertificates
 					if (certs != null && certs.isNotEmpty()) {
 						val x509 = certs[0] as java.security.cert.X509Certificate
@@ -376,8 +411,10 @@ class MainActivity : FlutterActivity() {
 				.connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
 				.readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
 
-			// If global pinning enabled and using publicKey mode, configure CertificatePinner
-			if (globalPinningEnabled && globalPinningMode == "publicKey") {
+			// Technique selection for OkHttp
+			val effTech = (techOkHttp ?: defaultTechnique)
+			val usePinner = globalPinningEnabled && effTech == "okhttpPinner" && globalPinningMode == "publicKey"
+			if (usePinner) {
 				try {
 					val host = java.net.URL(url).host
 					val cpb = CertificatePinner.Builder()
@@ -408,8 +445,12 @@ class MainActivity : FlutterActivity() {
 				val respBody = resp.body?.string() ?: ""
 				val status = resp.code
 
-				// If pinning enabled and using certHash mode, verify the leaf certificate's SHA-256
-				if (globalPinningEnabled && globalPinningMode == "certHash") {
+				// If pinning enabled and technique requires post-connect verification
+				val needPostVerify = globalPinningEnabled && (
+					(effTech == "postConnect") ||
+					(globalPinningMode == "certHash" && effTech != "none")
+				)
+				if (needPostVerify) {
 					try {
 						val peerCerts = resp.handshake?.peerCertificates
 						if (peerCerts != null && peerCerts.isNotEmpty()) {
@@ -429,5 +470,13 @@ class MainActivity : FlutterActivity() {
 			val duration = (System.currentTimeMillis() - start).toInt()
 			return mapOf("status" to null, "body" to "", "durationMs" to duration, "error" to e.toString())
 		}
+	}
+
+	private fun effectiveHttpUrlConnTech(): String {
+		return techHttpUrlConnection ?: defaultTechnique
+	}
+
+	private fun effectiveNativeCurlTech(): String {
+		return techNativeCurl ?: defaultTechnique
 	}
 }

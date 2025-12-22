@@ -24,6 +24,10 @@ class StacksImpl {
         'mode': cfg.mode.name, // 'publicKey' | 'certHash'
         'spkiPins': cfg.spkiPins,
         'certSha256Pins': cfg.certSha256Pins,
+        'techniques': {
+          'default': cfg.defaultTechnique.name,
+          'overrides': cfg.stackOverrides.map((k, v) => MapEntry(k, v.name)),
+        },
       },
     };
     try {

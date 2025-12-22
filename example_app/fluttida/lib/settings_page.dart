@@ -14,6 +14,12 @@ class _SettingsPageState extends State<SettingsPage> {
   PinningConfig _pinning = const PinningConfig.disabled();
   bool _cronetPinningSupported = false;
   final TextEditingController _pinInputController = TextEditingController();
+  final _stackKeys = const [
+    'httpUrlConnection',
+    'okHttp',
+    'nativeCurl',
+    'cronet',
+  ];
 
   @override
   void initState() {
@@ -163,22 +169,31 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       const Text('Mode:'),
                       const SizedBox(width: 12),
-                      DropdownButton<PinningMode>(
-                        value: _pinning.mode,
-                        items: const [
-                          DropdownMenuItem(
-                            value: PinningMode.publicKey,
-                            child: Text('Public Key (SPKI)'),
-                          ),
-                          DropdownMenuItem(
-                            value: PinningMode.certHash,
-                            child: Text('Certificate SHA-256'),
-                          ),
-                        ],
-                        onChanged: (m) {
-                          if (m != null)
-                            _savePinningConfig(_pinning.copyWith(mode: m));
-                        },
+                      Expanded(
+                        child: DropdownButton<PinningMode>(
+                          isExpanded: true,
+                          value: _pinning.mode,
+                          items: const [
+                            DropdownMenuItem(
+                              value: PinningMode.publicKey,
+                              child: Text(
+                                'Public Key (SPKI)',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: PinningMode.certHash,
+                              child: Text(
+                                'Certificate SHA-256',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                          onChanged: (m) {
+                            if (m != null)
+                              _savePinningConfig(_pinning.copyWith(mode: m));
+                          },
+                        ),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
@@ -186,6 +201,107 @@ class _SettingsPageState extends State<SettingsPage> {
                         tooltip: 'What are the modes?',
                         onPressed: _showModeInfo,
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text('Technique (default):'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButton<PinningTechnique>(
+                          isExpanded: true,
+                          value: _pinning.defaultTechnique,
+                          items: const [
+                            DropdownMenuItem(
+                              value: PinningTechnique.auto,
+                              child: Text('Auto'),
+                            ),
+                            DropdownMenuItem(
+                              value: PinningTechnique.none,
+                              child: Text('None'),
+                            ),
+                            DropdownMenuItem(
+                              value: PinningTechnique.postConnect,
+                              child: Text('Post-Connect'),
+                            ),
+                            DropdownMenuItem(
+                              value: PinningTechnique.okhttpPinner,
+                              child: Text('OkHttp CertificatePinner'),
+                            ),
+                            DropdownMenuItem(
+                              value: PinningTechnique.curlPreflight,
+                              child: Text('libcurl Preflight'),
+                            ),
+                            DropdownMenuItem(
+                              value: PinningTechnique.curlSslCtx,
+                              child: Text('libcurl SSL_CTX Callback'),
+                            ),
+                            DropdownMenuItem(
+                              value: PinningTechnique.curlBoth,
+                              child: Text('libcurl Both'),
+                            ),
+                          ],
+                          onChanged: (t) {
+                            if (t != null) {
+                              _savePinningConfig(
+                                _pinning.copyWith(defaultTechnique: t),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline),
+                        tooltip: 'Was bedeutet Auto?',
+                        onPressed: _showTechniqueAutoInfo,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Per-stack overrides',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildStackOverrideRow(
+                    label: 'HttpURLConnection',
+                    stackKey: 'httpUrlConnection',
+                    allowed: const [
+                      PinningTechnique.auto,
+                      PinningTechnique.none,
+                      PinningTechnique.postConnect,
+                    ],
+                  ),
+                  _buildStackOverrideRow(
+                    label: 'OkHttp',
+                    stackKey: 'okHttp',
+                    allowed: const [
+                      PinningTechnique.auto,
+                      PinningTechnique.none,
+                      PinningTechnique.postConnect,
+                      PinningTechnique.okhttpPinner,
+                    ],
+                  ),
+                  _buildStackOverrideRow(
+                    label: 'NDK libcurl',
+                    stackKey: 'nativeCurl',
+                    allowed: const [
+                      PinningTechnique.auto,
+                      PinningTechnique.none,
+                      PinningTechnique.curlPreflight,
+                      PinningTechnique.curlSslCtx,
+                      PinningTechnique.curlBoth,
+                    ],
+                  ),
+                  _buildStackOverrideRow(
+                    label: 'Cronet',
+                    stackKey: 'cronet',
+                    allowed: const [
+                      PinningTechnique.auto,
+                      PinningTechnique.none,
                     ],
                   ),
                   if (_pinning.enabled && !_cronetPinningSupported)
@@ -277,13 +393,114 @@ class _SettingsPageState extends State<SettingsPage> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: SelectableText(
-                      '{\n  "enabled": true,\n  "mode": "publicKey",\n  "spkiPins": ["47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="],\n  "certSha256Pins": []\n}',
+                      '{\n  "enabled": true,\n  "mode": "publicKey",\n  "spkiPins": ["47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="],\n  "certSha256Pins": [],\n  "techniques": {\n    "default": "auto",\n    "overrides": { "okHttp": "okhttpPinner", "nativeCurl": "curlBoth" }\n  }\n}',
                       style: const TextStyle(fontFamily: 'monospace'),
                     ),
                   ),
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStackOverrideRow({
+    required String label,
+    required String stackKey,
+    required List<PinningTechnique> allowed,
+  }) {
+    final effective =
+        _pinning.stackOverrides[stackKey] ?? PinningTechnique.auto;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(label, overflow: TextOverflow.ellipsis),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: DropdownButton<PinningTechnique>(
+              isExpanded: true,
+              value: effective,
+              items: allowed
+                  .map(
+                    (t) => DropdownMenuItem(
+                      value: t,
+                      child: Text(_techniqueLabel(t)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (t) {
+                if (t == null) return;
+                final next = Map<String, PinningTechnique>.from(
+                  _pinning.stackOverrides,
+                );
+                if (t == PinningTechnique.auto) {
+                  next.remove(stackKey);
+                } else {
+                  next[stackKey] = t;
+                }
+                _savePinningConfig(_pinning.copyWith(stackOverrides: next));
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _techniqueLabel(PinningTechnique t) {
+    switch (t) {
+      case PinningTechnique.auto:
+        return 'Auto';
+      case PinningTechnique.none:
+        return 'None';
+      case PinningTechnique.postConnect:
+        return 'Post-Connect';
+      case PinningTechnique.okhttpPinner:
+        return 'OkHttp CertificatePinner';
+      case PinningTechnique.curlPreflight:
+        return 'libcurl Preflight';
+      case PinningTechnique.curlSslCtx:
+        return 'libcurl SSL_CTX Callback';
+      case PinningTechnique.curlBoth:
+        return 'libcurl Both';
+    }
+  }
+
+  void _showTechniqueAutoInfo() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Technique: Auto'),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Auto selects a sensible default technique per stack:'),
+              SizedBox(height: 8),
+              Text('- HttpURLConnection: Post-Connect verification'),
+              Text(
+                '- OkHttp: CertificatePinner for SPKI, otherwise Post-Connect',
+              ),
+              Text('- NDK libcurl: Preflight + SSL_CTX Callback (both)'),
+              Text('- Cronet: No enforcement (currently unsupported)'),
+              SizedBox(height: 12),
+              Text('Notes:'),
+              Text('- Per-Stack Overrides override Auto.'),
+              Text('- If pinning is globally disabled, nothing is enforced.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
           ),
         ],
       ),
