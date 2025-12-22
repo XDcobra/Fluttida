@@ -13,12 +13,86 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   PinningConfig _pinning = const PinningConfig.disabled();
   bool _cronetPinningSupported = false;
+  final TextEditingController _pinInputController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadPinningConfig();
     _detectCronetSupport();
+  }
+
+  void _showModeInfo() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Pinning modes'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Public Key (SPKI):',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '- Pins the server public key (SPKI). More resilient across certificate renewals.',
+              ),
+              const SizedBox(height: 8),
+              const Text('Example PEM public key (truncated):'),
+              const SizedBox(height: 6),
+              const SelectableText(
+                '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...\n-----END PUBLIC KEY-----',
+                style: TextStyle(fontFamily: 'monospace'),
+              ),
+              const SizedBox(height: 6),
+              const Text('Example SPKI pin (base64 SHA-256):'),
+              const SelectableText(
+                '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Certificate SHA-256:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '- Pins the full leaf certificate fingerprint. Use when you must pin the exact certificate.',
+              ),
+              const SizedBox(height: 8),
+              const Text('Example PEM certificate (truncated):'),
+              const SizedBox(height: 6),
+              const SelectableText(
+                '-----BEGIN CERTIFICATE-----\nMIIDdzCCAl+gAwIBAgIEb...\n-----END CERTIFICATE-----',
+                style: TextStyle(fontFamily: 'monospace'),
+              ),
+              const SizedBox(height: 6),
+              const Text('Example cert SHA-256 pin (base64):'),
+              const SelectableText(
+                '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'When to choose:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              const Text('- Prefer Public Key (SPKI) for most use-cases.'),
+              const Text(
+                '- Use Certificate SHA-256 only if you manage the exact certificate and cannot use SPKI.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadPinningConfig() async {
@@ -45,6 +119,12 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _detectCronetSupport() async {
     final supported = await StacksImpl.isCronetPinningSupported();
     if (mounted) setState(() => _cronetPinningSupported = supported);
+  }
+
+  @override
+  void dispose() {
+    _pinInputController.dispose();
+    super.dispose();
   }
 
   @override
@@ -79,6 +159,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         _savePinningConfig(_pinning.copyWith(enabled: v)),
                   ),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       const Text('Mode:'),
                       const SizedBox(width: 12),
@@ -98,6 +179,12 @@ class _SettingsPageState extends State<SettingsPage> {
                           if (m != null)
                             _savePinningConfig(_pinning.copyWith(mode: m));
                         },
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline),
+                        tooltip: 'What are the modes?',
+                        onPressed: _showModeInfo,
                       ),
                     ],
                   ),
@@ -146,28 +233,19 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       Expanded(
                         child: TextFormField(
+                          controller: _pinInputController,
                           decoration: const InputDecoration(
                             labelText: 'Add base64 SHA-256 pin',
                             hintText: 'e.g. AbCd...==',
                             border: OutlineInputBorder(),
                           ),
-                          onFieldSubmitted: (v) {
-                            if (!isBase64Sha256(v)) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Invalid base64 SHA-256 value'),
-                                ),
-                              );
-                              return;
-                            }
-                            final list = List<String>.from(activePins)..add(v);
-                            _savePinningConfig(
-                              _pinning.mode == PinningMode.publicKey
-                                  ? _pinning.copyWith(spkiPins: list)
-                                  : _pinning.copyWith(certSha256Pins: list),
-                            );
-                          },
+                          onFieldSubmitted: (v) => _addPinFromInput(),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => _addPinFromInput(),
+                        child: const Text('Add'),
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton(
@@ -184,6 +262,24 @@ class _SettingsPageState extends State<SettingsPage> {
                         child: const Text('Export'),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Import format example:',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: SelectableText(
+                      '{\n  "enabled": true,\n  "mode": "publicKey",\n  "spkiPins": ["47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="],\n  "certSha256Pins": []\n}',
+                      style: const TextStyle(fontFamily: 'monospace'),
+                    ),
                   ),
                 ],
               ),
@@ -222,6 +318,34 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
+  }
+
+  void _addPinFromInput() {
+    final v = _pinInputController.text.trim();
+    if (v.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No pin to add')));
+      return;
+    }
+    if (!isBase64Sha256(v)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid base64 SHA-256 value')),
+      );
+      return;
+    }
+    final activePins = _pinning.mode == PinningMode.publicKey
+        ? _pinning.spkiPins
+        : _pinning.certSha256Pins;
+    final list = List<String>.from(activePins)..add(v);
+    final next = _pinning.mode == PinningMode.publicKey
+        ? _pinning.copyWith(spkiPins: list)
+        : _pinning.copyWith(certSha256Pins: list);
+    _savePinningConfig(next);
+    _pinInputController.clear();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Pin added')));
   }
 
   void _promptExportJson(BuildContext ctx, PinningConfig cfg) {
