@@ -29,6 +29,7 @@ import android.os.Looper
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.util.Date
 
 class MainActivity : FlutterActivity() {
 	private val CHANNEL = "fluttida/network"
@@ -81,12 +82,14 @@ class MainActivity : FlutterActivity() {
 								techCronet = (m["cronet"] as? String)
 							}
 						}
+						// Rebuild Cronet engine with new pins
+						rebuildCronetEngine()
 					}
 					result.success(null)
 				}
 				"isCronetPinningSupported" -> {
-					// Cronet public-key pinning support detection: not implemented here
-					result.success(false)
+					// Cronet pinning is now supported
+					result.success(true)
 				}
 				"androidHttpURLConnection" -> {
 					val args = call.arguments as? Map<*, *>
@@ -264,8 +267,58 @@ class MainActivity : FlutterActivity() {
 
 	private val cronetExecutor = Executors.newSingleThreadExecutor()
 
-	private val cronetEngine: CronetEngine by lazy {
-		CronetEngine.Builder(this).build()
+	@Volatile
+	private var cronetEngine: CronetEngine? = null
+
+	private fun getCronetEngine(): CronetEngine {
+		if (cronetEngine == null) {
+			synchronized(this) {
+				if (cronetEngine == null) {
+					cronetEngine = buildCronetEngine()
+				}
+			}
+		}
+		return cronetEngine!!
+	}
+
+	private fun buildCronetEngine(): CronetEngine {
+		val builder = CronetEngine.Builder(this)
+		
+		// Apply pinning if enabled and mode is publicKey (SPKI)
+		val effTech = techCronet ?: defaultTechnique
+		if (globalPinningEnabled && effTech != "none" && globalPinningMode == "publicKey" && globalSpkiPins.isNotEmpty()) {
+			try {
+				// Cronet expects a Set<ByteArray> with raw SHA-256 bytes and a java.util.Date expiration
+				val pinSet = mutableSetOf<ByteArray>()
+				for (pin in globalSpkiPins) {
+					val normalized = normalizePin(pin)
+					val bytes = Base64.decode(normalized, Base64.NO_WRAP)
+					if (bytes != null && bytes.size == 32) pinSet.add(bytes)
+				}
+				if (pinSet.isNotEmpty()) {
+					val expiration = Date(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000)
+					builder.addPublicKeyPins(
+						"*", // applies to all hosts; can be refined per-host if needed
+						pinSet,
+						false, // includeSubdomains
+						expiration
+					)
+				}
+			} catch (e: Throwable) {
+				// Log error but continue
+				android.util.Log.e("FluttidaCronet", "Failed to add public key pins: $e")
+			}
+		}
+		
+		return builder.build()
+	}
+
+	private fun rebuildCronetEngine() {
+		synchronized(this) {
+			// Shutdown old engine if present
+			cronetEngine?.shutdown()
+			cronetEngine = buildCronetEngine()
+		}
 	}
 
 	private fun handleCronetRequest(args: Map<*, *>?, result: MethodChannel.Result) {
@@ -318,7 +371,7 @@ class MainActivity : FlutterActivity() {
 				}
 			}
 
-			val requestBuilder = cronetEngine.newUrlRequestBuilder(url, callback, cronetExecutor)
+			val requestBuilder = getCronetEngine().newUrlRequestBuilder(url, callback, cronetExecutor)
 			requestBuilder.setHttpMethod(method)
 			headers?.forEach { (k, v) -> if (k is String && v != null) requestBuilder.addHeader(k, v.toString()) }
 

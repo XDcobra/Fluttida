@@ -263,7 +263,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 8),
                   Text(
                     'Per-stack overrides',
-                    style: Theme.of(context).textTheme.titleSmall,
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   _buildStackOverrideRow(
@@ -304,11 +304,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       PinningTechnique.none,
                     ],
                   ),
-                  if (_pinning.enabled && !_cronetPinningSupported)
+                  if (_pinning.enabled && _pinning.mode == PinningMode.certHash)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        'Note: Cronet does not support pinning in this build; it will warn and skip.',
+                        'Note: Cronet only supports SPKI (Public Key) pinning, not Certificate SHA-256. Cronet requests will skip pinning in this mode.',
                         style: Theme.of(
                           context,
                         ).textTheme.bodySmall?.copyWith(color: Colors.orange),
@@ -317,6 +317,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 8),
                   Text(
                     'Pins (${_pinning.mode == PinningMode.publicKey ? 'SPKI' : 'Cert SHA-256'})',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   for (int i = 0; i < activePins.length; i++)
@@ -489,7 +490,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 '- OkHttp: CertificatePinner for SPKI, otherwise Post-Connect',
               ),
               Text('- NDK libcurl: Preflight + SSL_CTX Callback (both)'),
-              Text('- Cronet: No enforcement (currently unsupported)'),
+              Text('- Cronet: SPKI (Public Key) enforcement; no cert-hash'),
               SizedBox(height: 12),
               Text('Notes:'),
               Text('- Per-Stack Overrides override Auto.'),

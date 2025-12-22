@@ -53,6 +53,16 @@ typedef void* (*X509_get_pubkey_t)(void*);
 typedef void (*EVP_PKEY_free_t)(void*);
 typedef void (*X509_free_t)(void*);
 typedef void* (*X509_STORE_CTX_get_current_cert_t)(void*);
+typedef int (*X509_STORE_CTX_get_error_depth_t)(void*);
+
+// Helper: detect if SSL_CTX_set_verify is available in libssl
+static bool sslctx_available() {
+    void* libssl = dlopen("libssl.so", RTLD_LAZY);
+    if (!libssl) return false;
+    void* sym = dlsym(libssl, "SSL_CTX_set_verify");
+    dlclose(libssl);
+    return sym != nullptr;
+}
 
 // The actual verify callback called by OpenSSL during chain verification
 static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
@@ -61,6 +71,7 @@ static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
     if (!libcrypto) return 0; // fail closed
 
     X509_STORE_CTX_get_current_cert_t fp_get_current = (X509_STORE_CTX_get_current_cert_t)dlsym(libcrypto, "X509_STORE_CTX_get_current_cert");
+    X509_STORE_CTX_get_error_depth_t fp_get_depth = (X509_STORE_CTX_get_error_depth_t)dlsym(libcrypto, "X509_STORE_CTX_get_error_depth");
     i2d_X509_t fp_i2d_X509 = (i2d_X509_t)dlsym(libcrypto, "i2d_X509");
     X509_get_pubkey_t fp_X509_get_pubkey = (X509_get_pubkey_t)dlsym(libcrypto, "X509_get_pubkey");
     i2d_PUBKEY_t fp_i2d_PUBKEY = (i2d_PUBKEY_t)dlsym(libcrypto, "i2d_PUBKEY");
@@ -68,9 +79,16 @@ static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
     X509_free_t fp_X509_free = (X509_free_t)dlsym(libcrypto, "X509_free");
     SHA256_fn_t fp_SHA256 = (SHA256_fn_t)dlsym(libcrypto, "SHA256");
 
-    if (!fp_get_current || !fp_i2d_X509 || !fp_X509_get_pubkey || !fp_i2d_PUBKEY || !fp_EVP_PKEY_free || !fp_X509_free || !fp_SHA256) {
+    if (!fp_get_current || !fp_get_depth || !fp_i2d_X509 || !fp_X509_get_pubkey || !fp_i2d_PUBKEY || !fp_EVP_PKEY_free || !fp_X509_free || !fp_SHA256) {
         dlclose(libcrypto);
         return 0;
+    }
+
+    // Only verify the leaf certificate (depth 0); allow intermediates/roots to pass
+    int depth = fp_get_depth(x509_ctx);
+    if (depth != 0) {
+        dlclose(libcrypto);
+        return 1; // Accept intermediate/root certs
     }
 
     void* cert = fp_get_current(x509_ctx);
@@ -356,8 +374,29 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         want_preflight = true; want_sslctx = true;
     }
 
+    // Log SSL_CTX availability once; if sslctx-only requested but unavailable, return error (do not fallback)
+    bool sslctxAvail = sslctx_available();
+    if (!curlTechnique.empty()) {
+        LOGI("SSL_CTX_set_verify available: %s (technique=%s)", sslctxAvail ? "true" : "false", curlTechnique.c_str());
+    } else {
+        LOGI("SSL_CTX_set_verify available: %s (technique=default)", sslctxAvail ? "true" : "false");
+    }
+    if ((!spkiPinsCsv.empty() || !certPinsCsv.empty()) && (curlTechnique == "sslctx") && !sslctxAvail) {
+        // Explicit SSL_CTX technique requested, but not supported on this build
+        if (header_list) curl_slist_free_all(header_list);
+        curl_easy_cleanup(curl);
+        int durationMs = (int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+        std::ostringstream out;
+        out << "{\"status\":null,\"body\":\"\",\"durationMs\":" << durationMs << ",\"error\":\"SSL_CTX not available in this OpenSSL build\"}";
+        if (jmethod) env->ReleaseStringUTFChars(jmethod, method_c);
+        if (jurl) env->ReleaseStringUTFChars(jurl, url_c);
+        if (jbody) env->ReleaseStringUTFChars(jbody, body_c);
+        std::string json = out.str();
+        return env->NewStringUTF(json.c_str());
+    }
+
     // If pin pseudo-headers provided and sslctx desired, register SSL_CTX callback with libcurl
-    if ((!spkiPinsCsv.empty() || !certPinsCsv.empty()) && want_sslctx) {
+    if ((!spkiPinsCsv.empty() || !certPinsCsv.empty()) && want_sslctx && sslctxAvail) {
         g_spkiPinsCsv_global = spkiPinsCsv;
         g_certPinsCsv_global = certPinsCsv;
         // CURLOPT_SSL_CTX_FUNCTION = 352, CURLOPT_SSL_CTX_DATA = 353
