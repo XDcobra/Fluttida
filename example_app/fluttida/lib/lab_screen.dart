@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:flutter/foundation.dart';
 import 'stacks/stacks_impl.dart';
 import 'versions.dart';
 
@@ -32,12 +34,12 @@ class RequestConfig {
     Object? body = _noUpdate,
     Duration? timeout,
   }) {
-    const Object _sentinel = _noUpdate;
+    const Object sentinel = _noUpdate;
     return RequestConfig(
       url: url ?? this.url,
       method: method ?? this.method,
       headers: headers ?? this.headers,
-      body: identical(body, _sentinel) ? this.body : (body as String?),
+      body: identical(body, sentinel) ? this.body : (body as String?),
       timeout: timeout ?? this.timeout,
     );
   }
@@ -130,6 +132,21 @@ class LabController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clears only status codes in stored results (preserves body/duration/error)
+  /// and notifies listeners. Use this instead of calling notifyListeners()
+  /// from outside the ChangeNotifier subclass.
+  void clearStatusCodes() {
+    results.forEach((k, v) {
+      results[k] = RequestResult(
+        status: null,
+        body: v.body,
+        durationMs: v.durationMs,
+        error: v.error,
+      );
+    });
+    notifyListeners();
+  }
+
   Future<void> runSequential({
     required List<StackDefinition> queue,
     required String runName,
@@ -206,7 +223,7 @@ class LabController extends ChangeNotifier {
 /// Placeholder / helper: shorten body for list rendering
 String previewBody(String s, {int max = 1200}) {
   if (s.length <= max) return s;
-  return s.substring(0, max) + "\n… (truncated)";
+  return "${s.substring(0, max)}\n… (truncated)";
 }
 
 /// ------------------------------------------------------------
@@ -405,6 +422,10 @@ class _LabScreenState extends State<LabScreen> {
   late final List<StackDefinition> stacks;
   late final WebViewController _webViewController;
 
+  BannerAd? _bannerAd;
+  bool _isBannerReady = false;
+  bool get _adsEnabled => kReleaseMode && !kIsLabApp;
+
   final _urlController = TextEditingController();
   String _method = "POST";
   final _bodyController = TextEditingController();
@@ -455,6 +476,10 @@ class _LabScreenState extends State<LabScreen> {
         ctrl.selected.add(s.id);
       }
     }
+
+    if (_adsEnabled) {
+      _loadBannerAd();
+    }
   }
 
   @override
@@ -462,8 +487,30 @@ class _LabScreenState extends State<LabScreen> {
     _urlController.dispose();
     _bodyController.dispose();
     _headersController.dispose();
+    _bannerAd?.dispose();
     ctrl.dispose();
     super.dispose();
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: Platform.isAndroid
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-3940256099942544/2934735716',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) return;
+          setState(() => _isBannerReady = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+        },
+      ),
+    );
+    _isBannerReady = false;
+    _bannerAd!.load();
   }
 
   void _applyConfig() {
@@ -502,23 +549,6 @@ class _LabScreenState extends State<LabScreen> {
       headers: parsedHeaders,
       body: _bodyController.text.isEmpty ? null : _bodyController.text,
       timeout: Duration(seconds: _timeoutSeconds.clamp(1, 600)),
-    );
-  }
-
-  Future<void> _runAllSupported() async {
-    _applyConfig();
-
-    final queue = stacks.where((s) => s.support().supported).toList();
-    await ctrl.runSequential(queue: queue, runName: "Run All Supported");
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          "Run finished — results are available in the 'Results' tab.",
-        ),
-        duration: Duration(seconds: 3),
-      ),
     );
   }
 
@@ -610,7 +640,7 @@ class _LabScreenState extends State<LabScreen> {
                               SizedBox(
                                 width: 110,
                                 child: DropdownButtonFormField<String>(
-                                  value: _method,
+                                  initialValue: _method,
                                   items: const [
                                     DropdownMenuItem(
                                       value: "GET",
@@ -628,8 +658,9 @@ class _LabScreenState extends State<LabScreen> {
                                   onChanged: ctrl.isRunning
                                       ? null
                                       : (v) {
-                                          if (v != null)
+                                          if (v != null) {
                                             setState(() => _method = v);
+                                          }
                                         },
                                   decoration: const InputDecoration(
                                     labelText: "Method",
@@ -757,7 +788,6 @@ class _LabScreenState extends State<LabScreen> {
                                                 });
                                                 ctrl.config = ctrl.config
                                                     .copyWith(body: null);
-                                                ctrl.notifyListeners();
                                                 ctrl.appendLog(
                                                   '>> Clear Body pressed: _bodyController="${_bodyController.text}" ctrl.config.body=${ctrl.config.body == null ? 'null' : 'len=${ctrl.config.body!.length}'}',
                                                 );
@@ -781,7 +811,6 @@ class _LabScreenState extends State<LabScreen> {
                                                 });
                                                 ctrl.config = ctrl.config
                                                     .copyWith(headers: {});
-                                                ctrl.notifyListeners();
                                                 ctrl.appendLog(
                                                   '>> Clear Header pressed: _headersController="${_headersController.text}" ctrl.config.headers=${ctrl.config.headers}',
                                                 );
@@ -803,20 +832,7 @@ class _LabScreenState extends State<LabScreen> {
                                       child: OutlinedButton(
                                         onPressed: ctrl.isRunning
                                             ? null
-                                            : () {
-                                                // Clear only status codes (preserve body/duration/error)
-                                                ctrl.results.forEach((k, v) {
-                                                  ctrl.results[k] =
-                                                      RequestResult(
-                                                        status: null,
-                                                        body: v.body,
-                                                        durationMs:
-                                                            v.durationMs,
-                                                        error: v.error,
-                                                      );
-                                                });
-                                                ctrl.notifyListeners();
-                                              },
+                                            : ctrl.clearStatusCodes,
                                         child: const Text(
                                           'Clear All Statuscodes',
                                         ),
@@ -827,6 +843,7 @@ class _LabScreenState extends State<LabScreen> {
                               ],
                             ),
                           ),
+                          const SizedBox(height: 8),
                           if (ctrl.isRunning &&
                               ctrl.currentStackId != null) ...[
                             const SizedBox(height: 8),
@@ -1011,6 +1028,15 @@ class _LabScreenState extends State<LabScreen> {
                 ),
               ],
             ),
+            bottomNavigationBar:
+                _adsEnabled && _isBannerReady && _bannerAd != null
+                ? SafeArea(
+                    child: SizedBox(
+                      height: _bannerAd!.size.height.toDouble(),
+                      child: AdWidget(ad: _bannerAd!),
+                    ),
+                  )
+                : null,
           ),
         );
       },
@@ -1059,13 +1085,13 @@ class FullscreenResultPage extends StatefulWidget {
   final String? error;
 
   const FullscreenResultPage({
-    Key? key,
+    super.key,
     required this.title,
     required this.body,
     this.status,
     required this.durationMs,
     this.error,
-  }) : super(key: key);
+  });
 
   @override
   State<FullscreenResultPage> createState() => _FullscreenResultPageState();
@@ -1106,6 +1132,7 @@ class _FullscreenResultPageState extends State<FullscreenResultPage> {
             icon: const Icon(Icons.copy),
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: widget.body));
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Copied to clipboard')),
               );
