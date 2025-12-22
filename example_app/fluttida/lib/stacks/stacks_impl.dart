@@ -11,9 +11,37 @@ import 'package:flutter/services.dart';
 import 'package:cupertino_http/cupertino_http.dart' as cupertino_http;
 
 import '../lab_screen.dart';
+import '../pinning_config.dart';
 
 class StacksImpl {
   static const MethodChannel _legacyChannel = MethodChannel('fluttida/network');
+
+  // Global pinning propagation. Safe if native side doesn't implement.
+  static Future<void> setGlobalPinningConfig(PinningConfig cfg) async {
+    final payload = {
+      'pinning': {
+        'enabled': cfg.enabled,
+        'mode': cfg.mode.name, // 'publicKey' | 'certHash'
+        'spkiPins': cfg.spkiPins,
+        'certSha256Pins': cfg.certSha256Pins,
+      },
+    };
+    try {
+      await _legacyChannel.invokeMethod('setGlobalPinningConfig', payload);
+    } catch (_) {
+      // Ignore: keeps UI responsive even if native handler not present
+    }
+  }
+
+  static Future<bool> isCronetPinningSupported() async {
+    try {
+      final res = await _legacyChannel.invokeMethod('isCronetPinningSupported');
+      if (res is bool) return res;
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   // Normalize native channel maps to RequestResult with safe defaults
   static RequestResult _fromNativeMap(

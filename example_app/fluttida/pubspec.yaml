@@ -13,6 +13,7 @@ dependencies:
   http: ^1.2.2
   webview_flutter: ^4.10.0
   google_mobile_ads: ^7.0.0
+  shared_preferences: ^2.3.2
 
 dependency_overrides:
   objective_c: 9.1.0  # pinning this version due to a bug: https://github.com/dart-lang/native/issues/2835
