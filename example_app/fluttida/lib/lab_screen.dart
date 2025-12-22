@@ -136,14 +136,14 @@ class LabController extends ChangeNotifier {
   /// and notifies listeners. Use this instead of calling notifyListeners()
   /// from outside the ChangeNotifier subclass.
   void clearStatusCodes() {
-    results.forEach((k, v) {
-      results[k] = RequestResult(
+    results.updateAll(
+      (k, v) => RequestResult(
         status: null,
         body: v.body,
         durationMs: v.durationMs,
         error: v.error,
-      );
-    });
+      ),
+    );
     notifyListeners();
   }
 
