@@ -155,6 +155,52 @@ class MainActivity : FlutterActivity() {
 		}
 	}
 
+	companion object {
+		@JvmStatic
+		fun verifyHostPins(host: String, port: Int, spkiCsv: String?, certCsv: String?): Boolean {
+			try {
+				val urlStr = "https://$host:${if (port > 0) port else 443}/"
+				val url = java.net.URL(urlStr)
+				val conn = (url.openConnection() as javax.net.ssl.HttpsURLConnection).apply {
+					connectTimeout = 5000
+					readTimeout = 5000
+					instanceFollowRedirects = false
+				}
+				try {
+					conn.connect()
+					val certs = conn.serverCertificates
+					if (certs != null && certs.isNotEmpty()) {
+						val x509 = certs[0] as java.security.cert.X509Certificate
+						// compute hashes
+						val pub = x509.publicKey.encoded
+						val md = MessageDigest.getInstance("SHA-256")
+						val spkiHash = android.util.Base64.encodeToString(md.digest(pub), android.util.Base64.NO_WRAP)
+						val der = x509.encoded
+						val certHash = android.util.Base64.encodeToString(md.digest(der), android.util.Base64.NO_WRAP)
+						// check provided CSV lists
+						if (!spkiCsv.isNullOrEmpty()) {
+							for (p in spkiCsv.split(',')) {
+								val np = p.trim().removePrefix("sha256/")
+								if (np == spkiHash) return true
+							}
+						}
+						if (!certCsv.isNullOrEmpty()) {
+							for (p in certCsv.split(',')) {
+								val np = p.trim().removePrefix("sha256/")
+								if (np == certHash) return true
+							}
+						}
+					}
+				} finally {
+					try { conn.disconnect() } catch (_: Throwable) { }
+				}
+			} catch (_: Throwable) {
+				return false
+			}
+			return false
+		}
+	}
+
 	// Copy assets/cacert.pem to a readable path and return its absolute path, or null if asset missing
 	private fun ensureCaBundle(): String? {
 		val assetName = "cacert.pem"

@@ -211,6 +211,63 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         curl_easy_setopt(curl, CURLOPT_CAINFO, caInfoPath.c_str());
     }
 
+    // If pinning pseudo-headers present, do a pre-flight verification by calling back into
+    // Java (MainActivity.verifyHostPins) via JNI. This avoids depending on libcurl's internal
+    // TLS APIs and works with the existing Kotlin pin-verification logic.
+    bool pin_ok = true;
+    if (!spkiPinsCsv.empty() || !certPinsCsv.empty()) {
+        // parse host and port from url_c (very small parser)
+        std::string urlstr(url_c);
+        std::string host;
+        int port = 443;
+        // find scheme
+        size_t pos = urlstr.find("://");
+        size_t start = (pos==std::string::npos) ? 0 : pos+3;
+        size_t slash = urlstr.find_first_of("/", start);
+        std::string authority = (slash==std::string::npos) ? urlstr.substr(start) : urlstr.substr(start, slash-start);
+        // authority may contain host:port
+        size_t colon = authority.find(':');
+        if (colon!=std::string::npos) {
+            host = authority.substr(0, colon);
+            try { port = std::stoi(authority.substr(colon+1)); } catch(...) { port = 443; }
+        } else {
+            host = authority;
+        }
+
+        // Only handle https
+        if (urlstr.rfind("https://", 0) == 0) {
+            // We have a valid JNIEnv* from the native method parameter named 'env', use it directly.
+            jclass cls = env->FindClass("com/example/fluttida/MainActivity");
+            if (cls) {
+                jmethodID mid = env->GetStaticMethodID(cls, "verifyHostPins", "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)Z");
+                if (mid) {
+                    jstring jhost = env->NewStringUTF(host.c_str());
+                    jstring jspki = env->NewStringUTF(spkiPinsCsv.c_str());
+                    jstring jcerts = env->NewStringUTF(certPinsCsv.c_str());
+                    jboolean res = env->CallStaticBooleanMethod(cls, mid, jhost, (jint)port, jspki, jcerts);
+                    pin_ok = (res == JNI_TRUE);
+                    env->DeleteLocalRef(jhost);
+                    env->DeleteLocalRef(jspki);
+                    env->DeleteLocalRef(jcerts);
+                }
+                env->DeleteLocalRef(cls);
+            }
+        }
+    }
+
+    if (!pin_ok) {
+        if (header_list) curl_slist_free_all(header_list);
+        curl_easy_cleanup(curl);
+        int durationMs = (int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+        std::ostringstream out;
+        out << "{\"status\":null,\"body\":\"\",\"durationMs\":" << durationMs << ",\"error\":\"SSL pinning mismatch\"}";
+        if (jmethod) env->ReleaseStringUTFChars(jmethod, method_c);
+        if (jurl) env->ReleaseStringUTFChars(jurl, url_c);
+        if (jbody) env->ReleaseStringUTFChars(jbody, body_c);
+        std::string json = out.str();
+        return env->NewStringUTF(json.c_str());
+    }
+
     int rc = curl_easy_perform(curl);
     long status = -1;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
