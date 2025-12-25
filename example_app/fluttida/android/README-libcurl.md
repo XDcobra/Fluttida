@@ -8,8 +8,26 @@ Place the shared objects under:
 
 - `example_app/fluttida/android/app/src/main/jniLibs/arm64-v8a/libcurl.so`
 - `example_app/fluttida/android/app/src/main/jniLibs/armeabi-v7a/libcurl.so` (optional if you only ship arm64)
+- `example_app/fluttida/android/app/src/main/jniLibs/x86_64/libcurl.so` (optional for emulator)
 
 Gradle will automatically package these into the APK.
+
+## Where to place the curl headers
+
+For compilation (C++ code includes `<curl/curl.h>`), copy the curl headers from your build output to:
+
+- `example_app/fluttida/android/app/src/main/cpp/third_party/curl/include/arm64-v8a/include/curl/*.h`
+- `example_app/fluttida/android/app/src/main/cpp/third_party/curl/include/armeabi-v7a/include/curl/*.h`
+- `example_app/fluttida/android/app/src/main/cpp/third_party/curl/include/x86_64/include/curl/*.h`
+
+**Example:** If you build libcurl with the build script in `libcurl-android-prebuilt-and-buildscripts`, copy:
+```bash
+# From build output (e.g., install/Release-unstripped/<abi>/include)
+cp -r install/Release-unstripped/arm64-v8a/include \
+      example_app/fluttida/android/app/src/main/cpp/third_party/curl/include/arm64-v8a/
+```
+
+The CMakeLists.txt uses `${ANDROID_ABI}` to select the correct headers per architecture during compilation.
 
 ## TLS backend
 

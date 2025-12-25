@@ -151,13 +151,7 @@ frida -U -n Fluttida -l intercept_dartio.js
 The lab app also includes native libcurl stacks to compare behavior outside the platform HTTP clients:
 
 - Android NDK (libcurl)
-  - Place your prebuilt `libcurl.so` under:
-    - `example_app/fluttida/android/app/src/main/jniLibs/arm64-v8a/libcurl.so`
-    - (optional) `example_app/fluttida/android/app/src/main/jniLibs/armeabi-v7a/libcurl.so`
-  - TLS verification is enabled by default. To ship a CA bundle, add `cacert.pem` to:
-    - `example_app/fluttida/android/app/src/main/assets/cacert.pem`
-    - The app copies it to a readable path and sets `CURLOPT_CAINFO` via a pseudo header (`X-Curl-CaInfo`).
-  - Debug-only override: set header `X-Curl-Insecure: true` to disable verification (never use in production).
+  - **See [android/README-libcurl.md](example_app/fluttida/android/README-libcurl.md) for full setup instructions** (libraries, headers, CA bundle).
   - In the app, select the stack "Android NDK (libcurl)".
 
 - iOS Native (libcurl XCFramework)
