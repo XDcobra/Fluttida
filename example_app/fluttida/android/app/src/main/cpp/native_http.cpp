@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <cctype>
 #include <errno.h>
+#include <curl/curl.h>
 
 #define LOG_TAG "FluttidaNativeHttp"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -146,17 +147,20 @@ static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
 }
 
 // Callback set via CURLOPT_SSL_CTX_FUNCTION; receives SSL_CTX* as second argument
-static int ssl_ctx_callback_stub(void* /*curl*/, void* ssl_ctx, void* /*userptr*/) {
+static CURLcode ssl_ctx_callback_stub(CURL* /*curl*/, void* ssl_ctx, void* /*userptr*/) {
     // Resolve OpenSSL function SSL_CTX_set_verify from libssl
     void* libssl = dlopen("libssl.so", RTLD_LAZY);
-    if (!libssl) return 1; // can't set, allow
+    if (!libssl) return CURLE_OK; // can't set, allow
     typedef void (*SSL_CTX_set_verify_t)(void*, int, int(*)(int, void*));
     SSL_CTX_set_verify_t fp_SSL_CTX_set_verify = (SSL_CTX_set_verify_t)dlsym(libssl, "SSL_CTX_set_verify");
-    if (!fp_SSL_CTX_set_verify) { dlclose(libssl); return 1; }
-    // register our verify callback
-    fp_SSL_CTX_set_verify(ssl_ctx, 1 /*SSL_VERIFY_PEER*/, (int(*)(int, void*))openssl_verify_callback);
+    if (!fp_SSL_CTX_set_verify) { 
+        dlclose(libssl); 
+        return CURLE_OK; 
+    }
+    // register our verify callback with SSL_VERIFY_PEER (0x01)
+    fp_SSL_CTX_set_verify(ssl_ctx, 0x01 /*SSL_VERIFY_PEER*/, (int(*)(int, void*))openssl_verify_callback);
     dlclose(libssl);
-    return 0; // success
+    return CURLE_OK;
 }
 
 // write callback for libcurl: append received bytes into std::string
@@ -265,6 +269,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     typedef void (*curl_slist_free_all_t)(void*);
     typedef int (*curl_easy_getinfo_t)(void*, int, ...);
     typedef const char* (*curl_easy_strerror_t)(int);
+    typedef void* (*curl_version_info_t)(int);
 
     auto curl_easy_init = (curl_easy_init_t)dlsym(lib, "curl_easy_init");
     auto curl_easy_setopt = (curl_easy_setopt_t)dlsym(lib, "curl_easy_setopt");
@@ -274,6 +279,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     auto curl_slist_free_all = (curl_slist_free_all_t)dlsym(lib, "curl_slist_free_all");
     auto curl_easy_getinfo = (curl_easy_getinfo_t)dlsym(lib, "curl_easy_getinfo");
     auto curl_easy_strerror = (curl_easy_strerror_t)dlsym(lib, "curl_easy_strerror");
+    auto curl_version_info = (curl_version_info_t)dlsym(lib, "curl_version_info");
 
     if (!curl_easy_init || !curl_easy_setopt || !curl_easy_perform || !curl_easy_cleanup ||
         !curl_slist_append || !curl_slist_free_all || !curl_easy_getinfo) {
@@ -348,21 +354,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)jtimeoutMs);
     }
 
-    // TLS verification (on by default; can be disabled via X-Curl-Insecure:true)
-    if (insecure) {
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    } else {
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    }
-
-    // Optional CA bundle override
-    if (!caInfoPath.empty()) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, caInfoPath.c_str());
-    }
-
-    // Decide technique toggles
+    // Decide technique toggles EARLY to set SSL_CTX callback before other SSL options
     bool want_preflight = false;
     bool want_sslctx = false;
     if (!curlTechnique.empty()) {
@@ -374,13 +366,8 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         want_preflight = true; want_sslctx = true;
     }
 
-    // Log SSL_CTX availability once; if sslctx-only requested but unavailable, return error (do not fallback)
+    // Log SSL_CTX availability; if sslctx-only requested but unavailable, return error
     bool sslctxAvail = sslctx_available();
-    if (!curlTechnique.empty()) {
-        LOGI("SSL_CTX_set_verify available: %s (technique=%s)", sslctxAvail ? "true" : "false", curlTechnique.c_str());
-    } else {
-        LOGI("SSL_CTX_set_verify available: %s (technique=default)", sslctxAvail ? "true" : "false");
-    }
     if ((!spkiPinsCsv.empty() || !certPinsCsv.empty()) && (curlTechnique == "sslctx") && !sslctxAvail) {
         // Explicit SSL_CTX technique requested, but not supported on this build
         if (header_list) curl_slist_free_all(header_list);
@@ -395,13 +382,26 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         return env->NewStringUTF(json.c_str());
     }
 
-    // If pin pseudo-headers provided and sslctx desired, register SSL_CTX callback with libcurl
+    // CRITICAL: Register SSL_CTX callback BEFORE setting other SSL options
     if ((!spkiPinsCsv.empty() || !certPinsCsv.empty()) && want_sslctx && sslctxAvail) {
         g_spkiPinsCsv_global = spkiPinsCsv;
         g_certPinsCsv_global = certPinsCsv;
-        // CURLOPT_SSL_CTX_FUNCTION = 352, CURLOPT_SSL_CTX_DATA = 353
-        curl_easy_setopt(curl, 352, (void*)ssl_ctx_callback_stub);
-        curl_easy_setopt(curl, 353, nullptr);
+        curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_callback_stub);
+        curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, nullptr);
+    }
+
+    // TLS verification (on by default; can be disabled via X-Curl-Insecure:true)
+    if (insecure) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    } else {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    }
+
+    // Optional CA bundle override
+    if (!caInfoPath.empty()) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, caInfoPath.c_str());
     }
 
     // If pinning pseudo-headers present and preflight desired, perform native pre-flight verification
