@@ -17,6 +17,9 @@
 #include <cctype>
 #include <errno.h>
 
+// Include curl.h for proper CURLOPT constants
+#include <curl/curl.h>
+
 #define LOG_TAG "FluttidaNativeHttp"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -454,9 +457,9 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         g_certPinsCsv_global = certPinsCsv;
         LOGI("Registering SSL_CTX callback BEFORE other SSL opts (spkiPins='%s', certPins='%s')", 
              spkiPinsCsv.c_str(), certPinsCsv.c_str());
-        // CURLOPT_SSL_CTX_FUNCTION = 352, CURLOPT_SSL_CTX_DATA = 353
-        int rc_func = curl_easy_setopt(curl, 352, (void*)ssl_ctx_callback_stub);
-        int rc_data = curl_easy_setopt(curl, 353, nullptr);
+        
+        int rc_func = curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, (void*)ssl_ctx_callback_stub);
+        int rc_data = curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, nullptr);
         LOGI("SSL_CTX callback setopt results: FUNCTION=%d, DATA=%d (0=CURLE_OK)", rc_func, rc_data);
         if (rc_func != 0) {
             LOGE("CURLOPT_SSL_CTX_FUNCTION setopt FAILED with code %d - option not supported!", rc_func);
