@@ -179,14 +179,33 @@ class MainActivity : FlutterActivity() {
 			if (!globalPinningEnabled) return true
 			if (globalPinningMode == "publicKey") {
 				val spki = calcSpkiSha256Base64(cert)
-				for (p in globalSpkiPins) if (normalizePin(p) == spki) return true
+				sendLogToFlutter("[PIN DEBUG] Server SPKI SHA256: $spki")
+				for (p in globalSpkiPins) {
+					val normalized = normalizePin(p)
+					sendLogToFlutter("[PIN DEBUG] Comparing against configured pin: $normalized")
+					if (normalized == spki) {
+						sendLogToFlutter("[PIN DEBUG] ✓ Pin matched")
+						return true
+					}
+				}
+				sendLogToFlutter("[PIN DEBUG] ✗ No matching SPKI pin found")
 				false
 			} else {
 				val ch = calcCertSha256Base64(cert)
-				for (p in globalCertPins) if (normalizePin(p) == ch) return true
+				sendLogToFlutter("[PIN DEBUG] Server Cert SHA256: $ch")
+				for (p in globalCertPins) {
+					val normalized = normalizePin(p)
+					sendLogToFlutter("[PIN DEBUG] Comparing against configured pin: $normalized")
+					if (normalized == ch) {
+						sendLogToFlutter("[PIN DEBUG] ✓ Pin matched")
+						return true
+					}
+				}
+				sendLogToFlutter("[PIN DEBUG] ✗ No matching cert hash pin found")
 				false
 			}
-		} catch (_: Throwable) {
+		} catch (e: Throwable) {
+			sendLogToFlutter("[PIN DEBUG] Pin verification error: ${e.message}")
 			false
 		}
 	}
@@ -462,10 +481,7 @@ class MainActivity : FlutterActivity() {
 							if (chain.isEmpty()) throw java.security.cert.CertificateException("Empty certificate chain")
 							// Check first cert (server cert) against pins
 							val cert = chain[0]
-							val pinOk = verifyCertPins(cert)
-							if (!pinOk) throw java.security.cert.CertificateException("SSL pinning mismatch (TrustManager)")
-						}
-						
+						sendLogToFlutter("[HttpURLConnection/TrustManager] Verifying certificate...")
 						override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
 					}
 					
@@ -497,6 +513,7 @@ class MainActivity : FlutterActivity() {
 					val certs = conn.serverCertificates
 					if (certs != null && certs.isNotEmpty()) {
 						val x509 = certs[0] as java.security.cert.X509Certificate
+						sendLogToFlutter("[HttpURLConnection/postConnect] Verifying certificate...")
 						val ok = verifyCertPins(x509)
 						if (!ok) throw Exception("SSL pinning mismatch (postConnect)")
 					}
@@ -577,8 +594,8 @@ class MainActivity : FlutterActivity() {
 					try {
 						val peerCerts = resp.handshake?.peerCertificates
 						if (peerCerts != null && peerCerts.isNotEmpty()) {
-							val x509 = peerCerts[0] as java.security.cert.X509Certificate
-							val ok = verifyCertPins(x509)
+							val x509 = peerCerts[0] as java.security.cert.X509Certificate						val techLabel = if (effTech == "postConnect") "postConnect" else "certHash fallback"
+						sendLogToFlutter("[OkHttp/$techLabel] Verifying certificate...")							val ok = verifyCertPins(x509)
 							if (!ok) throw Exception("SSL pinning mismatch")
 						}
 					} catch (e: Exception) {
