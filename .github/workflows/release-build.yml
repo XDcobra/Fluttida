@@ -1,9 +1,14 @@
 name: Release (unsigned APK + IPA)
 
+# Triggers
+# This workflow is manual-only by default. Use the Actions UI -> "Run workflow"
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch: {}
+
+# To run automatically when a tag like `v1.2.3` is pushed, uncomment below.
+# push:
+#   tags:
+#     - 'v*'
 
 permissions:
   contents: write
