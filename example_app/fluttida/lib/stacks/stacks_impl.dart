@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' as io;
 
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
@@ -11,9 +11,65 @@ import 'package:flutter/services.dart';
 import 'package:cupertino_http/cupertino_http.dart' as cupertino_http;
 
 import '../lab_screen.dart';
+import '../pinning_config.dart';
+import '../pinning/global_http_override.dart';
+import '../pinning/stacks/dart_io_pinning.dart';
+import '../pinning/stacks/package_http_pinning.dart';
 
 class StacksImpl {
   static const MethodChannel _legacyChannel = MethodChannel('fluttida/network');
+  static void Function(String)? _logSink;
+
+  static void setupLogChannel() {
+    _legacyChannel.setMethodCallHandler((call) async {
+      if (call.method == 'log') {
+        final msg = (call.arguments as Map?)?['message'] as String?;
+        if (msg != null) _log(msg);
+      }
+    });
+  }
+
+  // Global pinning propagation. Safe if native side doesn't implement.
+  static Future<void> setGlobalPinningConfig(PinningConfig cfg) async {
+    // Build techniques map from per-stack configs
+    final techniques = <String, String>{};
+    cfg.stacks.forEach((key, config) {
+      if (config.enabled) {
+        techniques[key] = config.technique.name;
+      }
+    });
+
+    final payload = {
+      'pinning': {
+        'enabled': cfg.enabled,
+        'mode': cfg.mode.name, // 'publicKey' | 'certHash'
+        'spkiPins': cfg.spkiPins,
+        'certSha256Pins': cfg.certSha256Pins,
+        'techniques': techniques,
+      },
+    };
+    try {
+      await _legacyChannel.invokeMethod('setGlobalPinningConfig', payload);
+      GlobalHttpOverride.setConfig(cfg);
+    } catch (_) {
+      // Ignore: keeps UI responsive even if native handler not present
+    }
+  }
+
+  static void setLogSink(void Function(String) sink) {
+    _logSink = sink;
+    GlobalHttpOverride.setLogSink(sink);
+  }
+
+  static Future<bool> isCronetPinningSupported() async {
+    try {
+      final res = await _legacyChannel.invokeMethod('isCronetPinningSupported');
+      if (res is bool) return res;
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   // Normalize native channel maps to RequestResult with safe defaults
   static RequestResult _fromNativeMap(
@@ -40,13 +96,43 @@ class StacksImpl {
     );
   }
 
+  // Helper that instruments `HttpClient` with debug logging for certificate
+  // verification. It sets a `badCertificateCallback` that prints certificate
+  // details so we can see whether the callback is being invoked at runtime.
+  // In debug builds the callback rejects the certificate to surface pinning
+  // problems; in release builds it preserves the previous (accept) behavior.
+  static bool _shouldPinDartIoRaw() {
+    return DartIoPinning.shouldPin();
+  }
+
+  static void _log(String msg) {
+    // Console log for dev
+    // ignore: avoid_print
+    print(msg);
+    try {
+      _logSink?.call(msg);
+    } catch (_) {}
+  }
+
+  // Enable global HttpOverrides so all `HttpClient` instances use our instrumented client
+  static void enableGlobalHttpOverrides() {
+    GlobalHttpOverride.enableGlobalOverride();
+  }
+
+  // Disable global HttpOverrides (reset to null)
+  static void disableGlobalHttpOverrides() {
+    GlobalHttpOverride.disableGlobalOverride();
+  }
+
   // ---------------------------------------------------------------------------
   // 1) RAW dart:io HttpClient
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
     final sw = Stopwatch()..start();
     try {
-      final client = HttpClient();
+      final client = _shouldPinDartIoRaw()
+          ? DartIoPinning.createClient()
+          : io.HttpClient();
       client.connectionTimeout = cfg.timeout;
 
       final uri = Uri.parse(cfg.url);
@@ -105,6 +191,15 @@ class StacksImpl {
     final sw = Stopwatch()..start();
     try {
       final uri = Uri.parse(cfg.url);
+      final usePinning = PackageHttpPinning.shouldPinDefault();
+      _log('[DEBUG] requestHttpDefault: usePinning=$usePinning');
+
+      final ioHttpClient = usePinning
+          ? PackageHttpPinning.createClient()
+          : io.HttpClient();
+      ioHttpClient.connectionTimeout = cfg.timeout;
+
+      final client = IOClient(ioHttpClient);
 
       final http.Request r = http.Request(cfg.method, uri);
       r.headers.addAll(cfg.headers);
@@ -112,8 +207,9 @@ class StacksImpl {
         r.body = cfg.body!;
       }
 
-      final streamed = await http.Client().send(r);
+      final streamed = await client.send(r);
       final resp = await http.Response.fromStream(streamed);
+      client.close();
 
       sw.stop();
       return RequestResult(
@@ -140,7 +236,15 @@ class StacksImpl {
   ) async {
     final sw = Stopwatch()..start();
     try {
-      final ioHttpClient = HttpClient();
+      final usePinning = PackageHttpPinning.shouldPinViaIOClient();
+      final ioHttpClient = usePinning
+          ? PackageHttpPinning.createClient()
+          : io.HttpClient();
+      if (usePinning) {
+        _log(
+          '[PIN DEBUG] requestHttpViaExplicitIoClient: instrumented HttpClient created',
+        );
+      }
       ioHttpClient.connectionTimeout = cfg.timeout;
 
       final client = IOClient(ioHttpClient);
@@ -178,7 +282,7 @@ class StacksImpl {
   ) async {
     final sw = Stopwatch()..start();
     try {
-      if (!Platform.isIOS) {
+      if (!io.Platform.isIOS) {
         throw Exception("cupertino_http is iOS-only");
       }
 
@@ -218,7 +322,7 @@ class StacksImpl {
   // In Step 2.3 verdrahten wir diesen Channel hier sauber.
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestLegacyIos(RequestConfig cfg) async {
-    if (!Platform.isIOS) {
+    if (!io.Platform.isIOS) {
       return RequestResult(
         status: null,
         body: '',
@@ -250,7 +354,7 @@ class StacksImpl {
   static Future<RequestResult> requestAndroidHttpUrlConnection(
     RequestConfig cfg,
   ) async {
-    if (!Platform.isAndroid) {
+    if (!io.Platform.isAndroid) {
       return RequestResult(
         status: null,
         body: '',
@@ -278,7 +382,7 @@ class StacksImpl {
   // Android native: OkHttp (via MethodChannel)
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestAndroidOkHttp(RequestConfig cfg) async {
-    if (!Platform.isAndroid) {
+    if (!io.Platform.isAndroid) {
       return RequestResult(
         status: null,
         body: '',
@@ -306,7 +410,7 @@ class StacksImpl {
   // Android native: Cronet (via MethodChannel) -- scaffold
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestAndroidCronet(RequestConfig cfg) async {
-    if (!Platform.isAndroid) {
+    if (!io.Platform.isAndroid) {
       return RequestResult(
         status: null,
         body: '',
@@ -336,7 +440,7 @@ class StacksImpl {
   static Future<RequestResult> requestAndroidNativeCurl(
     RequestConfig cfg,
   ) async {
-    if (!Platform.isAndroid) {
+    if (!io.Platform.isAndroid) {
       return RequestResult(
         status: null,
         body: '',

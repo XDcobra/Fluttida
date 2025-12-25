@@ -16,5 +16,14 @@ if(NOT dl-lib)
   set(dl-lib dl)
 endif()
 
+# Add libcurl headers (per-ABI) that we vendor into the repo under third_party/curl/include/<abi>/include
+# Use CMAKE_CURRENT_SOURCE_DIR to anchor at android/app/src/main/cpp
+set(CURL_LOCAL_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/curl/include/${ANDROID_ABI}/include")
+if(EXISTS "${CURL_LOCAL_INCLUDE}")
+  target_include_directories(nativehttp PRIVATE "${CURL_LOCAL_INCLUDE}")
+else()
+  message(WARNING "libcurl include path not found: ${CURL_LOCAL_INCLUDE}")
+endif()
+
 # Export JNI symbols
 target_link_libraries(nativehttp ${log-lib} ${android-lib} ${dl-lib})

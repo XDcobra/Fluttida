@@ -1,7 +1,7 @@
 # Fluttida – Intercepting Flutter App Traffic with Frida
 This repository provides tools and Frida scripts to analyze, intercept and forward network traffic from Flutter applications via Frida. Because Flutter often bypasses system proxy settings and uses custom networking stacks, standard proxy interception fails. The scripts here help identify which client (e.g. `dart:io`, `NSURLSession`, `NSURLConnection`, or `WKWebView`) is in use and redirect traffic through a proxy for effective reverse engineering.
 
-<div align="center">
+<div align="center" style="width:80%;margin:0 auto;">
   <img src="docs/fluttida-banner.png" alt="Fluttida - Proxy Interception for Flutter Apps via Frida" width=60%" />
 
   <p>
@@ -58,6 +58,7 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 | libcurl (native)                 | Coming soon                                                                              | Coming soon                                                                                | Coming soon                      | Coming soon                         |
 
 </div>
+
 ---
 
 ### Technical Background
@@ -111,21 +112,27 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 
 
 ## Example App: Fluttida ([example_app/fluttida](example_app/fluttida))
-<div style="display:flex;gap:8px;align-items:flex-start;">
-  <img src="example_app/fluttida/docs/images/main_screen.png" alt="Fluttida Main screen" style="width:33%;height:auto;border-radius:8px;" />
-  <img src="example_app/fluttida/docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:33%;height:auto;border-radius:8px;" />
-  <img src="example_app/fluttida/docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:33%;height:auto;border-radius:8px;" />
+<div style="display:flex;gap:8px;align-items:flex-start;width:90%;margin:0 auto;">
+  <img src="example_app/fluttida/docs/images/main_screen.png" alt="Fluttida Main screen" style="width:25%;height:auto;border-radius:8px;" />
+  <img src="example_app/fluttida/docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:25%;height:auto;border-radius:8px;" />
+  <img src="example_app/fluttida/docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:25%;height:auto;border-radius:8px;" />
+  <img src="example_app/fluttida/docs/images/pinning_screen.png" alt="Fluttida SSL Pinning Screen" style="width:25%;height:auto;border-radius:8px;" />
 </div>
 
 This repository includes a small Flutter example app located at [example_app/fluttida](example_app/fluttida). The app is a network-stack lab and playground designed to help you test, compare, and instrument different HTTP clients and platform stacks while using Frida.
 
-How this app helps with Frida
+### SSL pinning lab (example app)
+- Enable/disable pinning per stack (dart:io, package:http, Android HttpURLConnection/OkHttp/Cronet, native libcurl).
+- Switch between SPKI (public key) and certificate hash pins; import/export pins as base64.
+- UI logs show server cert/SPKI hashes alongside configured pins for quick debugging.
+
+### How this app helps with Frida
 - Playground for multiple stacks: run the same request via `dart:io`, `package:http`, iOS `NSURLSession` (via `cupertino_http`), Android native stacks (HttpURLConnection, OkHttp, Cronet), and a headless WebView — compare results side-by-side.
 - Safe instrumentation target: use the app on a device or emulator as a controlled target for Frida scripts so you can attach hooks without affecting production apps.
 - Validate hooks & proxying: reproduce real-world scenarios (headers, redirects, TLS behavior) and verify that your Frida scripts (e.g. `intercept_dartio.js`) correctly redirect or modify traffic.
 - Debugging helper: the app shows unified results (`status`, `body`, `durationMs`, `error`) and logs, making it easy to observe the effects of your live instrumentation.
 
-Quick steps to use the example app with Frida
+### Quick steps to use the example app with Frida
 1. Run the example app on a device or emulator:
 
 ```bash
@@ -148,16 +155,10 @@ frida -U -n Fluttida -l intercept_dartio.js
 
 ### Native libcurl stacks (Android NDK and iOS)
 
-The lab app also includes native libcurl stacks to compare behavior outside the platform HTTP clients:
+The lab app also includes native libcurl stacks to compare behavior outside the platform HTTP clients. In case you want to include your own libcurl builds, read the following how-to:
 
 - Android NDK (libcurl)
-  - Place your prebuilt `libcurl.so` under:
-    - `example_app/fluttida/android/app/src/main/jniLibs/arm64-v8a/libcurl.so`
-    - (optional) `example_app/fluttida/android/app/src/main/jniLibs/armeabi-v7a/libcurl.so`
-  - TLS verification is enabled by default. To ship a CA bundle, add `cacert.pem` to:
-    - `example_app/fluttida/android/app/src/main/assets/cacert.pem`
-    - The app copies it to a readable path and sets `CURLOPT_CAINFO` via a pseudo header (`X-Curl-CaInfo`).
-  - Debug-only override: set header `X-Curl-Insecure: true` to disable verification (never use in production).
+  - **See [android/README-libcurl.md](example_app/fluttida/android/README-libcurl.md) for full setup instructions** (libraries, headers, CA bundle).
   - In the app, select the stack "Android NDK (libcurl)".
 
 - iOS Native (libcurl XCFramework)
@@ -183,6 +184,6 @@ The lab app also includes native libcurl stacks to compare behavior outside the 
 
   - Project wiring: the project has been updated to add library search paths and link flags for the `OpenSSL-static` folders and to copy `cacert.pem` into the app bundle. If you prefer, you can instead add the four `.a` files as file references under the Runner target.
 
-Licenses
+## Licenses
 - The app includes license files under the XCFramework (e.g., `licenses/COPYING-curl.txt`). Keep third‑party license texts with distributed binaries.
 

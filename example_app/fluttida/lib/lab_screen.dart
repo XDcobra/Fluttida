@@ -9,6 +9,9 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter/foundation.dart';
 import 'stacks/stacks_impl.dart';
 import 'versions.dart';
+import 'pinning_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'settings_page.dart';
 
 enum StackLayer { dart, native, webview, ndk }
 
@@ -136,14 +139,14 @@ class LabController extends ChangeNotifier {
   /// and notifies listeners. Use this instead of calling notifyListeners()
   /// from outside the ChangeNotifier subclass.
   void clearStatusCodes() {
-    results.forEach((k, v) {
-      results[k] = RequestResult(
+    results.updateAll(
+      (k, v) => RequestResult(
         status: null,
         body: v.body,
         durationMs: v.durationMs,
         error: v.error,
-      );
-    });
+      ),
+    );
     notifyListeners();
   }
 
@@ -431,6 +434,7 @@ class _LabScreenState extends State<LabScreen> {
   final _bodyController = TextEditingController();
   final _headersController = TextEditingController();
   int _timeoutSeconds = 20;
+  PinningConfig _pinning = const PinningConfig.disabled();
 
   @override
   void initState() {
@@ -444,6 +448,9 @@ class _LabScreenState extends State<LabScreen> {
         '{"Content-Type":"application/json","X-Api-Key":"abc123"}';
 
     ctrl = LabController(config: RequestConfig(url: widget.initialUrl));
+    // Forward StacksImpl debug logs into UI log view
+    StacksImpl.setLogSink(ctrl.appendLog);
+    StacksImpl.setupLogChannel();
 
     // Prepare a persistent WebViewController for headless usage
     _webViewController = WebViewController()
@@ -480,6 +487,8 @@ class _LabScreenState extends State<LabScreen> {
     if (_adsEnabled) {
       _loadBannerAd();
     }
+
+    _loadPinningConfig();
   }
 
   @override
@@ -511,6 +520,18 @@ class _LabScreenState extends State<LabScreen> {
     );
     _isBannerReady = false;
     _bannerAd!.load();
+  }
+
+  Future<void> _loadPinningConfig() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('pinning.config');
+      if (raw != null) {
+        _pinning = PinningConfig.importJson(raw);
+      }
+    } catch (_) {}
+    await StacksImpl.setGlobalPinningConfig(_pinning);
+    if (mounted) setState(() {});
   }
 
   void _applyConfig() {
@@ -606,6 +627,17 @@ class _LabScreenState extends State<LabScreen> {
                   ),
                 ],
               ),
+              actions: [
+                IconButton(
+                  tooltip: 'Settings',
+                  icon: const Icon(Icons.settings),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SettingsPage()),
+                    );
+                  },
+                ),
+              ],
               bottom: const TabBar(
                 tabs: [
                   Tab(text: "Stack"),

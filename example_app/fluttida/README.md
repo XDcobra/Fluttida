@@ -1,9 +1,10 @@
 # Fluttida (Network Stack Lab)
 
-<div style="display:flex;gap:8px;align-items:flex-start;">
-	<img src="docs/images/main_screen.png" alt="Fluttida Main screen" style="width:33%;height:auto;border-radius:8px;" />
-	<img src="docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:33%;height:auto;border-radius:8px;" />
-	<img src="docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:33%;height:auto;border-radius:8px;" />
+<div style="display:flex;gap:8px;align-items:flex-start;width:90%;margin:0 auto;">
+  <img src="docs/images/main_screen.png" alt="Fluttida Main screen" style="width:25%;height:auto;border-radius:8px;" />
+  <img src="docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:25%;height:auto;border-radius:8px;" />
+  <img src="docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:25%;height:auto;border-radius:8px;" />
+  <img src="docs/images/pinning_screen.png" alt="Fluttida SSL Pinning Screen" style="width:25%;height:auto;border-radius:8px;" />
 </div>
 
 <br>
@@ -36,11 +37,13 @@ Fluttida runs on both supported mobile platforms. The table below highlights ava
 | Android OkHttp | ![no](https://img.shields.io/badge/-%E2%9D%8C-red?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
 | Cronet (Android) | ![no](https://img.shields.io/badge/-%E2%9D%8C-red?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
 | Headless WebView DOM scraping | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
+| Native libcurl + OpenSSL | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) | ![yes](https://img.shields.io/badge/-%E2%9C%94-brightgreen?style=flat) |
 
 </div>
 
 ## Features
 - Multiple network stacks: `dart:io HttpClient`, `package:http` (default), `package:http` via `IOClient`, `cupertino_http` (NSURLSession on iOS), native iOS legacy connection, Android native stacks (HttpURLConnection, OkHttp, Cronet), and a headless WebView DOM scraper.
+- SSL pinning lab: toggle pinning per stack (Dart, Android native, native libcurl), choose SPKI vs certificate hash, and view per-pin comparisons in the Logs tab.
 - Unified result format: each stack returns `status`, `body`, `durationMs`, and `error` (when applicable) so you can compare outputs easily.
 - Interactive UI: three tabs — **Stack** (configure request and pick stacks), **Results** (preview and full-screen viewer), and **Logs** (per-run debug output).
 - Full-screen viewer: open truncated responses in a selectable, scrollable view with jump-to-end and copy-to-clipboard controls.
