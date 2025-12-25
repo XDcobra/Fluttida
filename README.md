@@ -58,6 +58,7 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 | libcurl (native)                 | Coming soon                                                                              | Coming soon                                                                                | Coming soon                      | Coming soon                         |
 
 </div>
+
 ---
 
 ### Technical Background
@@ -120,13 +121,18 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 
 This repository includes a small Flutter example app located at [example_app/fluttida](example_app/fluttida). The app is a network-stack lab and playground designed to help you test, compare, and instrument different HTTP clients and platform stacks while using Frida.
 
-How this app helps with Frida
+### SSL pinning lab (example app)
+- Enable/disable pinning per stack (dart:io, package:http, Android HttpURLConnection/OkHttp/Cronet, native libcurl).
+- Switch between SPKI (public key) and certificate hash pins; import/export pins as base64.
+- UI logs show server cert/SPKI hashes alongside configured pins for quick debugging.
+
+### How this app helps with Frida
 - Playground for multiple stacks: run the same request via `dart:io`, `package:http`, iOS `NSURLSession` (via `cupertino_http`), Android native stacks (HttpURLConnection, OkHttp, Cronet), and a headless WebView — compare results side-by-side.
 - Safe instrumentation target: use the app on a device or emulator as a controlled target for Frida scripts so you can attach hooks without affecting production apps.
 - Validate hooks & proxying: reproduce real-world scenarios (headers, redirects, TLS behavior) and verify that your Frida scripts (e.g. `intercept_dartio.js`) correctly redirect or modify traffic.
 - Debugging helper: the app shows unified results (`status`, `body`, `durationMs`, `error`) and logs, making it easy to observe the effects of your live instrumentation.
 
-Quick steps to use the example app with Frida
+### Quick steps to use the example app with Frida
 1. Run the example app on a device or emulator:
 
 ```bash
@@ -149,7 +155,7 @@ frida -U -n Fluttida -l intercept_dartio.js
 
 ### Native libcurl stacks (Android NDK and iOS)
 
-The lab app also includes native libcurl stacks to compare behavior outside the platform HTTP clients:
+The lab app also includes native libcurl stacks to compare behavior outside the platform HTTP clients. In case you want to include your own libcurl builds, read the following how-to:
 
 - Android NDK (libcurl)
   - **See [android/README-libcurl.md](example_app/fluttida/android/README-libcurl.md) for full setup instructions** (libraries, headers, CA bundle).
@@ -178,6 +184,6 @@ The lab app also includes native libcurl stacks to compare behavior outside the 
 
   - Project wiring: the project has been updated to add library search paths and link flags for the `OpenSSL-static` folders and to copy `cacert.pem` into the app bundle. If you prefer, you can instead add the four `.a` files as file references under the Runner target.
 
-Licenses
+## Licenses
 - The app includes license files under the XCFramework (e.g., `licenses/COPYING-curl.txt`). Keep third‑party license texts with distributed binaries.
 
