@@ -20,6 +20,15 @@ class StacksImpl {
   static const MethodChannel _legacyChannel = MethodChannel('fluttida/network');
   static void Function(String)? _logSink;
 
+  static void setupLogChannel() {
+    _legacyChannel.setMethodCallHandler((call) async {
+      if (call.method == 'log') {
+        final msg = (call.arguments as Map?)?['message'] as String?;
+        if (msg != null) _log(msg);
+      }
+    });
+  }
+
   // Global pinning propagation. Safe if native side doesn't implement.
   static Future<void> setGlobalPinningConfig(PinningConfig cfg) async {
     // Build techniques map from per-stack configs

@@ -450,6 +450,7 @@ class _LabScreenState extends State<LabScreen> {
     ctrl = LabController(config: RequestConfig(url: widget.initialUrl));
     // Forward StacksImpl debug logs into UI log view
     StacksImpl.setLogSink(ctrl.appendLog);
+    StacksImpl.setupLogChannel();
 
     // Prepare a persistent WebViewController for headless usage
     _webViewController = WebViewController()

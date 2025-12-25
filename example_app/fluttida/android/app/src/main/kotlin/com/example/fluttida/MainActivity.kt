@@ -79,7 +79,7 @@ class MainActivity : FlutterActivity() {
 							techCronet = (it["cronet"] as? String)
 						}
 						// Rebuild Cronet engine with new pins
-						rebuildCronetEngine()
+						rebuildCronetEngine(null)
 					}
 					result.success(null)
 				}
@@ -155,9 +155,9 @@ class MainActivity : FlutterActivity() {
 		}
 	}
 
-	// Normalize a pin string by removing optional "sha256/" prefix and whitespace
+	// Normalize a pin string by removing optional "sha256/" prefix and all whitespace
 	private fun normalizePin(pin: String): String {
-		var p = pin.trim()
+		var p = pin.replace("\\s".toRegex(), "")
 		if (p.startsWith("sha256/")) p = p.substring(7)
 		return p
 	}
@@ -256,54 +256,99 @@ class MainActivity : FlutterActivity() {
 
 	@Volatile
 	private var cronetEngine: CronetEngine? = null
+	@Volatile
+	private var cronetPinnedHost: String? = null
 
-	private fun getCronetEngine(): CronetEngine {
-		if (cronetEngine == null) {
+	private fun cronetLog(msg: String) {
+		android.util.Log.d("FluttidaCronet", msg)
+		sendLogToFlutter("[CRONET] $msg")
+	}
+
+	private fun sendLogToFlutter(msg: String) {
+		try {
+			Handler(Looper.getMainLooper()).post {
+				MethodChannel(
+					flutterEngine?.dartExecutor?.binaryMessenger ?: return@post,
+					CHANNEL
+				).invokeMethod("log", mapOf("message" to msg))
+			}
+		} catch (_: Throwable) {}
+	}
+
+	private fun getCronetEngine(host: String?): CronetEngine {
+		if (cronetEngine == null || cronetPinnedHost != host) {
 			synchronized(this) {
-				if (cronetEngine == null) {
-					cronetEngine = buildCronetEngine()
+				if (cronetEngine == null || cronetPinnedHost != host) {
+					try {
+						rebuildCronetEngine(host)
+					} catch (e: Throwable) {
+						// Reset engine state on build failure
+						cronetEngine = null
+						cronetPinnedHost = null
+						throw e
+					}
 				}
 			}
 		}
 		return cronetEngine!!
 	}
 
-	private fun buildCronetEngine(): CronetEngine {
+	private fun buildCronetEngine(host: String?): CronetEngine {
 		val builder = CronetEngine.Builder(this)
-		
+		// Enforce pins even when a user-added CA exists (otherwise Cronet bypasses)
+		builder.enablePublicKeyPinningBypassForLocalTrustAnchors(false)
+
 		// Apply pinning if enabled and mode is publicKey (SPKI)
-		if (globalPinningEnabled && techCronet != null && techCronet != "none" && globalPinningMode == "publicKey" && globalSpkiPins.isNotEmpty()) {
-			try {
-				// Cronet expects a Set<ByteArray> with raw SHA-256 bytes and a java.util.Date expiration
-				val pinSet = mutableSetOf<ByteArray>()
-				for (pin in globalSpkiPins) {
+		if (globalPinningEnabled && techCronet != null && techCronet != "none" && globalPinningMode == "publicKey" && globalSpkiPins.isNotEmpty() && !host.isNullOrEmpty()) {
+			val pinSet = mutableSetOf<ByteArray>()
+			val errors = mutableListOf<String>()
+			for (pin in globalSpkiPins) {
+				try {
 					val normalized = normalizePin(pin)
 					val bytes = Base64.decode(normalized, Base64.NO_WRAP)
-					if (bytes != null && bytes.size == 32) pinSet.add(bytes)
+					if (bytes != null && bytes.size == 32) {
+						pinSet.add(bytes)
+					} else {
+						errors.add("Pin '$pin' decoded to ${bytes?.size ?: 0} bytes (expected 32)")
+					}
+				} catch (e: Throwable) {
+					errors.add("Pin '$pin' failed: ${e.message}")
 				}
-				if (pinSet.isNotEmpty()) {
-					val expiration = Date(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000)
-					builder.addPublicKeyPins(
-						"*", // applies to all hosts; can be refined per-host if needed
-						pinSet,
-						false, // includeSubdomains
-						expiration
-					)
-				}
-			} catch (e: Throwable) {
-				// Log error but continue
-				android.util.Log.e("FluttidaCronet", "Failed to add public key pins: $e")
 			}
+			if (pinSet.isEmpty()) {
+				val errMsg = "Cronet pinning enabled but no valid pins: ${errors.joinToString("; ")}"
+				android.util.Log.e("FluttidaCronet", errMsg)
+				throw IllegalStateException(errMsg)
+			}
+			val expiration = Date(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000)
+			builder.addPublicKeyPins(
+				host,
+				pinSet,
+				true, // includeSubdomains
+				expiration
+			)
+			cronetLog("Applied ${pinSet.size} SPKI pins to host=$host")
+			if (errors.isNotEmpty()) {
+				cronetLog("Warnings: ${errors.joinToString("; ")}")
+			}
+		} else if (globalPinningEnabled && techCronet != null && techCronet != "none" && globalPinningMode != "publicKey") {
+			android.util.Log.w("FluttidaCronet", "Cronet pinning requested but mode=$globalPinningMode is unsupported (SPKI only)")
 		}
 		
 		return builder.build()
 	}
 
-	private fun rebuildCronetEngine() {
+	private fun rebuildCronetEngine(host: String?) {
 		synchronized(this) {
 			// Shutdown old engine if present
-			cronetEngine?.shutdown()
-			cronetEngine = buildCronetEngine()
+			try {
+				cronetEngine?.shutdown()
+			} catch (_: Throwable) {}
+			cronetEngine = null
+			cronetPinnedHost = null
+			// Build new engine (may throw on invalid pins)
+			cronetEngine = buildCronetEngine(host)
+			cronetPinnedHost = host
 		}
 	}
 
@@ -311,10 +356,20 @@ class MainActivity : FlutterActivity() {
 	private fun handleCronetRequest(args: Map<*, *>?, result: MethodChannel.Result) {
 		val start = System.currentTimeMillis()
 		try {
+			if (globalPinningEnabled && techCronet != null && techCronet != "none" && globalPinningMode != "publicKey") {
+				cronetLog("Blocking request: unsupported pinning mode=$globalPinningMode for Cronet (SPKI only)")
+				val map = mapOf("status" to null, "body" to "", "durationMs" to 0, "error" to "Cronet supports only SPKI pinning")
+				Handler(Looper.getMainLooper()).post { result.success(map) }
+				return
+			}
+
 			val url = (args?.get("url") as? String) ?: throw Exception("no url")
 			val method = (args["method"] as? String) ?: "GET"
 			val headers = args["headers"] as? Map<*, *>
 			val body = args["body"] as? String
+
+			val targetHost = java.net.URL(url).host
+			cronetLog("Request host=$targetHost method=$method pinningEnabled=$globalPinningEnabled mode=$globalPinningMode tech=$techCronet spkiPins=${globalSpkiPins.size}")
 
 			val baos = ByteArrayOutputStream()
 
@@ -324,6 +379,7 @@ class MainActivity : FlutterActivity() {
 				}
 
 				override fun onResponseStarted(request: UrlRequest, info: UrlResponseInfo) {
+					cronetLog("Response started host=${info.url?.let { java.net.URL(it).host }} status=${info.httpStatusCode}")
 					request.read(ByteBuffer.allocateDirect(8192))
 				}
 
@@ -340,24 +396,26 @@ class MainActivity : FlutterActivity() {
 					val respBody = baos.toString("UTF-8")
 					val status = info.httpStatusCode
 					val duration = (System.currentTimeMillis() - start).toInt()
+					cronetLog("Success host=${info.url?.let { java.net.URL(it).host }} status=$status durationMs=$duration")
 					val map = mapOf("status" to status, "body" to respBody, "durationMs" to duration, "error" to null)
 					Handler(Looper.getMainLooper()).post { result.success(map) }
 				}
 
 				override fun onFailed(request: UrlRequest, info: UrlResponseInfo?, error: CronetException) {
 					val duration = (System.currentTimeMillis() - start).toInt()
+					cronetLog("Failed host=${info?.url?.let { java.net.URL(it).host }} durationMs=$duration error=$error")
 					val map = mapOf("status" to null, "body" to "", "durationMs" to duration, "error" to error.toString())
 					Handler(Looper.getMainLooper()).post { result.success(map) }
 				}
 
 				override fun onCanceled(request: UrlRequest, info: UrlResponseInfo?) {
 					val duration = (System.currentTimeMillis() - start).toInt()
+					cronetLog("Canceled host=${info?.url?.let { java.net.URL(it).host }} durationMs=$duration")
 					val map = mapOf("status" to null, "body" to "", "durationMs" to duration, "error" to "canceled")
 					Handler(Looper.getMainLooper()).post { result.success(map) }
 				}
 			}
-
-			val requestBuilder = getCronetEngine().newUrlRequestBuilder(url, callback, cronetExecutor)
+			val requestBuilder = getCronetEngine(targetHost).newUrlRequestBuilder(url, callback, cronetExecutor)
 			requestBuilder.setHttpMethod(method)
 			headers?.forEach { (k, v) -> if (k is String && v != null) requestBuilder.addHeader(k, v.toString()) }
 
