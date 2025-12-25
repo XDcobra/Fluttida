@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
-import 'package:crypto/crypto.dart' as crypto;
-import 'package:asn1lib/asn1lib.dart';
 
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
@@ -14,13 +12,10 @@ import 'package:cupertino_http/cupertino_http.dart' as cupertino_http;
 
 import '../lab_screen.dart';
 import '../pinning_config.dart';
+import '../pinning/global_http_override.dart';
 
 class StacksImpl {
   static const MethodChannel _legacyChannel = MethodChannel('fluttida/network');
-  static final io.HttpOverrides _noOverrides = _NoOverrides();
-  // Current pinning configuration used by dart:io path
-  static PinningConfig _currentPinningConfig = const PinningConfig.disabled();
-  static bool _globalOverrideEnabled = false;
   static void Function(String)? _logSink;
 
   // Global pinning propagation. Safe if native side doesn't implement.
@@ -44,8 +39,7 @@ class StacksImpl {
     };
     try {
       await _legacyChannel.invokeMethod('setGlobalPinningConfig', payload);
-      // keep a local copy for dart:io enforcement
-      _currentPinningConfig = cfg;
+      GlobalHttpOverride.setConfig(cfg);
     } catch (_) {
       // Ignore: keeps UI responsive even if native handler not present
     }
@@ -53,10 +47,7 @@ class StacksImpl {
 
   static void setLogSink(void Function(String) sink) {
     _logSink = sink;
-  }
-
-  static void setGlobalOverrideEnabled(bool enabled) {
-    _globalOverrideEnabled = enabled;
+    GlobalHttpOverride.setLogSink(sink);
   }
 
   static Future<bool> isCronetPinningSupported() async {
@@ -100,63 +91,15 @@ class StacksImpl {
   // In debug builds the callback rejects the certificate to surface pinning
   // problems; in release builds it preserves the previous (accept) behavior.
   static bool _shouldPinDartIoRaw() {
-    final cfg = _currentPinningConfig;
-    if (_globalOverrideEnabled) return true;
-    if (!cfg.enabled) return false;
-    return cfg.stacks['dartIo']?.enabled == true;
+    return GlobalHttpOverride.shouldPinDartIo();
   }
 
   static bool _shouldPinPackageHttp() {
-    final cfg = _currentPinningConfig;
-    if (_globalOverrideEnabled) return true;
-    if (!cfg.enabled) return false;
-    return cfg.stacks['packageHttp']?.enabled == true;
+    return GlobalHttpOverride.shouldPinPackageHttp();
   }
 
   static io.HttpClient _createInstrumentedHttpClient() {
-    final client = _newHttpClientRaw();
-    client.badCertificateCallback =
-        (io.X509Certificate cert, String host, int port) {
-              // If pinning disabled, accept normally
-              final cfg = _currentPinningConfig;
-              if (!cfg.enabled) return true;
-
-              _log(
-                '[PIN DEBUG] badCertificateCallback invoked for host=$host port=$port mode=${cfg.mode.name} spkiPins=${cfg.spkiPins.length} certPins=${cfg.certSha256Pins.length}',
-              );
-              // compute either cert hash or spki hash according to mode
-              try {
-                if (cfg.mode == PinningMode.certHash) {
-                  final h = _computeCertSha256Base64(cert);
-                  _log('[PIN DEBUG] computed cert sha256 (base64)=$h');
-                  if (cfg.certSha256Pins.contains(h)) return true;
-                  _log('[PIN DEBUG] cert hash mismatch');
-                  return false;
-                } else {
-                  final h = _computeSpkiSha256Base64(cert);
-                  _log('[PIN DEBUG] computed spki sha256 (base64)=$h');
-                  if (cfg.spkiPins.contains(h)) return true;
-                  _log('[PIN DEBUG] spki hash mismatch');
-                  return false;
-                }
-              } catch (e, st) {
-                _log('[PIN DEBUG] pin check failed: $e\n$st');
-                // conservative: reject when pin check fails unexpectedly
-                return false;
-              }
-            }
-            as bool Function(io.X509Certificate, String, int)?;
-    return client;
-  }
-
-  // Create a raw HttpClient with overrides disabled to avoid recursion when
-  // HttpOverrides.global is set to our own overrides.
-  static io.HttpClient _newHttpClientRaw() {
-    final ctx = io.SecurityContext(withTrustedRoots: false);
-    return io.HttpOverrides.runWithHttpOverrides<io.HttpClient>(
-      () => io.HttpClient(context: ctx),
-      _noOverrides,
-    );
+    return GlobalHttpOverride.createInstrumentedHttpClient();
   }
 
   static void _log(String msg) {
@@ -168,54 +111,14 @@ class StacksImpl {
     } catch (_) {}
   }
 
-  // Compute base64-encoded SHA-256 of full certificate DER
-  static String _computeCertSha256Base64(io.X509Certificate cert) {
-    final der = cert.der;
-    final digest = crypto.sha256.convert(der);
-    return base64.encode(digest.bytes);
-  }
-
-  // Extract SubjectPublicKeyInfo from cert DER and return base64 SHA-256
-  static String _computeSpkiSha256Base64(io.X509Certificate cert) {
-    final der = cert.der;
-    final parser = ASN1Parser(der);
-    final top = parser.nextObject() as ASN1Sequence; // Certificate
-    final tbs = top.elements[0] as ASN1Sequence; // tbsCertificate
-
-    // Find SubjectPublicKeyInfo: scan for a sequence that contains a bit string
-    ASN1Sequence? spki;
-    for (final el in tbs.elements) {
-      if (el is ASN1Sequence) {
-        final children = el.elements;
-        if (children.any((c) => c is ASN1BitString)) {
-          spki = el;
-          break;
-        }
-      }
-    }
-    if (spki == null) {
-      // fallback: try to pick element index 6 (common location)
-      if (tbs.elements.length > 6 && tbs.elements[6] is ASN1Sequence) {
-        spki = tbs.elements[6] as ASN1Sequence;
-      } else {
-        throw Exception('SPKI not found in certificate');
-      }
-    }
-    final spkiBytes = spki.encodedBytes;
-    final digest = crypto.sha256.convert(spkiBytes);
-    return base64.encode(digest.bytes);
-  }
-
   // Enable global HttpOverrides so all `HttpClient` instances use our instrumented client
   static void enableGlobalHttpOverrides() {
-    _globalOverrideEnabled = true;
-    io.HttpOverrides.global = _PinnedHttpOverrides();
+    GlobalHttpOverride.enableGlobalOverride();
   }
 
   // Disable global HttpOverrides (reset to null)
   static void disableGlobalHttpOverrides() {
-    _globalOverrideEnabled = false;
-    io.HttpOverrides.global = null;
+    GlobalHttpOverride.disableGlobalOverride();
   }
 
   // ---------------------------------------------------------------------------
@@ -720,13 +623,3 @@ class StacksImpl {
     }
   }
 }
-
-class _PinnedHttpOverrides extends io.HttpOverrides {
-  @override
-  io.HttpClient createHttpClient(io.SecurityContext? context) {
-    final client = StacksImpl._createInstrumentedHttpClient();
-    return client;
-  }
-}
-
-class _NoOverrides extends io.HttpOverrides {}
