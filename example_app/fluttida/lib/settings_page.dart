@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'pinning_config.dart';
 import 'stacks/stacks_impl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,84 +14,19 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   PinningConfig _pinning = const PinningConfig.disabled();
   final TextEditingController _pinInputController = TextEditingController();
+  bool _useGlobalOverride = false;
 
   @override
   void initState() {
     super.initState();
     _loadPinningConfig();
+    _loadGlobalOverrideSetting();
   }
 
-  void _showModeInfo() {
-    showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Pinning modes'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Public Key (SPKI):',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                '- Pins the server public key (SPKI). More resilient across certificate renewals.',
-              ),
-              const SizedBox(height: 8),
-              const Text('Example PEM public key (truncated):'),
-              const SizedBox(height: 6),
-              const SelectableText(
-                '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...\n-----END PUBLIC KEY-----',
-                style: TextStyle(fontFamily: 'monospace'),
-              ),
-              const SizedBox(height: 6),
-              const Text('Example SPKI pin (base64 SHA-256):'),
-              const SelectableText(
-                '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Certificate SHA-256:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                '- Pins the full leaf certificate fingerprint. Use when you must pin the exact certificate.',
-              ),
-              const SizedBox(height: 8),
-              const Text('Example PEM certificate (truncated):'),
-              const SizedBox(height: 6),
-              const SelectableText(
-                '-----BEGIN CERTIFICATE-----\nMIIDdzCCAl+gAwIBAgIEb...\n-----END CERTIFICATE-----',
-                style: TextStyle(fontFamily: 'monospace'),
-              ),
-              const SizedBox(height: 6),
-              const Text('Example cert SHA-256 pin (base64):'),
-              const SelectableText(
-                '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'When to choose:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              const Text('- Prefer Public Key (SPKI) for most use-cases.'),
-              const Text(
-                '- Use Certificate SHA-256 only if you manage the exact certificate and cannot use SPKI.',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+  @override
+  void dispose() {
+    _pinInputController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPinningConfig() async {
@@ -114,10 +50,45 @@ class _SettingsPageState extends State<SettingsPage> {
     await StacksImpl.setGlobalPinningConfig(cfg);
   }
 
-  @override
-  void dispose() {
-    _pinInputController.dispose();
-    super.dispose();
+  Future<void> _loadGlobalOverrideSetting() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = prefs.getBool('pinning.useGlobalOverride') ?? false;
+      if (mounted) setState(() => _useGlobalOverride = value);
+    } catch (_) {}
+  }
+
+  Future<void> _saveGlobalOverrideSetting(bool value) async {
+    setState(() => _useGlobalOverride = value);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('pinning.useGlobalOverride', value);
+    } catch (_) {}
+    if (value) {
+      StacksImpl.enableGlobalHttpOverrides();
+    } else {
+      StacksImpl.disableGlobalHttpOverrides();
+    }
+  }
+
+  void _toggleStack(String key, bool enabled) {
+    final stacks = Map<String, StackPinConfig>.from(_pinning.stacks);
+    final existing = stacks[key] ?? const StackPinConfig.disabled();
+    stacks[key] = StackPinConfig(
+      enabled: enabled,
+      technique: existing.technique,
+    );
+    _savePinningConfig(_pinning.copyWith(stacks: stacks));
+  }
+
+  void _setStackTechnique(String key, PinningTechnique technique) {
+    final stacks = Map<String, StackPinConfig>.from(_pinning.stacks);
+    final existing = stacks[key] ?? const StackPinConfig.disabled();
+    stacks[key] = StackPinConfig(
+      enabled: existing.enabled,
+      technique: technique,
+    );
+    _savePinningConfig(_pinning.copyWith(stacks: stacks));
   }
 
   @override
@@ -127,7 +98,7 @@ class _SettingsPageState extends State<SettingsPage> {
         : _pinning.certSha256Pins;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('SSL Pinning Settings')),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
@@ -138,255 +109,267 @@ class _SettingsPageState extends State<SettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'SSL Pinning',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    'SSL Certificate Pinning',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   SwitchListTile(
-                    title: const Text('Enable SSL Pinning'),
-                    subtitle: const Text(
-                      'Global toggle for Android HTTP stacks',
-                    ),
+                    title: const Text('Enable Pinning'),
                     value: _pinning.enabled,
                     onChanged: (v) =>
                         _savePinningConfig(_pinning.copyWith(enabled: v)),
                   ),
+                  const SizedBox(height: 8),
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Text('Mode:'),
+                      const Text(
+                        'Mode:',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: DropdownButton<PinningMode>(
-                          isExpanded: true,
-                          value: _pinning.mode,
-                          items: const [
-                            DropdownMenuItem(
+                        child: SegmentedButton<PinningMode>(
+                          segments: const [
+                            ButtonSegment(
                               value: PinningMode.publicKey,
-                              child: Text(
-                                'Public Key (SPKI)',
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              label: Text('Public Key (SPKI)'),
                             ),
-                            DropdownMenuItem(
+                            ButtonSegment(
                               value: PinningMode.certHash,
-                              child: Text(
-                                'Certificate SHA-256',
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              label: Text('Certificate Hash'),
                             ),
                           ],
-                          onChanged: (m) {
-                            if (m != null) {
-                              _savePinningConfig(_pinning.copyWith(mode: m));
-                            }
+                          selected: {_pinning.mode},
+                          onSelectionChanged: (Set<PinningMode> selection) {
+                            _savePinningConfig(
+                              _pinning.copyWith(mode: selection.first),
+                            );
                           },
                         ),
                       ),
-                      const SizedBox(width: 8),
                       IconButton(
-                        icon: const Icon(Icons.info_outline),
-                        tooltip: 'What are the modes?',
+                        icon: const Icon(Icons.info_outline, size: 20),
                         onPressed: _showModeInfo,
                       ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  const Divider(),
                   const SizedBox(height: 8),
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Text('Technique (default):'),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButton<PinningTechnique>(
-                          isExpanded: true,
-                          value: _pinning.defaultTechnique,
-                          items: const [
-                            DropdownMenuItem(
-                              value: PinningTechnique.auto,
-                              child: Text('Auto'),
+                      const Text(
+                        'Pins',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '(${_pinning.mode == PinningMode.publicKey ? 'SPKI SHA-256' : 'Cert SHA-256'})',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (activePins.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'No pins configured',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    )
+                  else
+                    ...activePins.asMap().entries.map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                e.value,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                ),
+                              ),
                             ),
-                            DropdownMenuItem(
-                              value: PinningTechnique.none,
-                              child: Text('None'),
-                            ),
-                            DropdownMenuItem(
-                              value: PinningTechnique.postConnect,
-                              child: Text('Post-Connect'),
-                            ),
-                            DropdownMenuItem(
-                              value: PinningTechnique.okhttpPinner,
-                              child: Text('OkHttp CertificatePinner'),
-                            ),
-                            DropdownMenuItem(
-                              value: PinningTechnique.curlPreflight,
-                              child: Text('libcurl Preflight'),
-                            ),
-                            DropdownMenuItem(
-                              value: PinningTechnique.curlSslCtx,
-                              child: Text('libcurl SSL_CTX Callback'),
-                            ),
-                            DropdownMenuItem(
-                              value: PinningTechnique.curlBoth,
-                              child: Text('libcurl Both'),
+                            IconButton(
+                              icon: const Icon(Icons.delete, size: 20),
+                              onPressed: () {
+                                final list = List<String>.from(activePins)
+                                  ..removeAt(e.key);
+                                _savePinningConfig(
+                                  _pinning.mode == PinningMode.publicKey
+                                      ? _pinning.copyWith(spkiPins: list)
+                                      : _pinning.copyWith(certSha256Pins: list),
+                                );
+                              },
                             ),
                           ],
-                          onChanged: (t) {
-                            if (t != null) {
-                              _savePinningConfig(
-                                _pinning.copyWith(defaultTechnique: t),
-                              );
-                            }
-                          },
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.info_outline),
-                        tooltip: 'Was bedeutet Auto?',
-                        onPressed: _showTechniqueAutoInfo,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Per-stack overrides',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildStackOverrideRow(
-                    label: 'HttpURLConnection',
-                    stackKey: 'httpUrlConnection',
-                    allowed: const [
-                      PinningTechnique.auto,
-                      PinningTechnique.none,
-                      PinningTechnique.postConnect,
-                    ],
-                  ),
-                  _buildStackOverrideRow(
-                    label: 'OkHttp',
-                    stackKey: 'okHttp',
-                    allowed: const [
-                      PinningTechnique.auto,
-                      PinningTechnique.none,
-                      PinningTechnique.postConnect,
-                      PinningTechnique.okhttpPinner,
-                    ],
-                  ),
-                  _buildStackOverrideRow(
-                    label: 'NDK libcurl',
-                    stackKey: 'nativeCurl',
-                    allowed: const [
-                      PinningTechnique.auto,
-                      PinningTechnique.none,
-                      PinningTechnique.curlPreflight,
-                      PinningTechnique.curlSslCtx,
-                      PinningTechnique.curlBoth,
-                    ],
-                  ),
-                  _buildStackOverrideRow(
-                    label: 'Cronet',
-                    stackKey: 'cronet',
-                    allowed: const [
-                      PinningTechnique.auto,
-                      PinningTechnique.none,
-                    ],
-                  ),
-                  if (_pinning.enabled && _pinning.mode == PinningMode.certHash)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Note: Cronet only supports SPKI (Public Key) pinning, not Certificate SHA-256. Cronet requests will skip pinning in this mode.',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodySmall?.copyWith(color: Colors.orange),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Pins (${_pinning.mode == PinningMode.publicKey ? 'SPKI' : 'Cert SHA-256'})',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  for (int i = 0; i < activePins.length; i++)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            activePins[i],
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontFamily: 'monospace'),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () {
-                            final list = List<String>.from(activePins)
-                              ..removeAt(i);
-                            _savePinningConfig(
-                              _pinning.mode == PinningMode.publicKey
-                                  ? _pinning.copyWith(spkiPins: list)
-                                  : _pinning.copyWith(certSha256Pins: list),
-                            );
-                          },
-                        ),
-                      ],
                     ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
+                        child: TextField(
                           controller: _pinInputController,
                           decoration: const InputDecoration(
-                            labelText: 'Add base64 SHA-256 pin',
-                            hintText: 'e.g. AbCd...==',
+                            labelText: 'Add pin (base64)',
+                            hintText: 'AbCd...==',
                             border: OutlineInputBorder(),
+                            isDense: true,
                           ),
-                          onFieldSubmitted: (v) => _addPinFromInput(),
+                          onSubmitted: (_) => _addPinFromInput(),
                         ),
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton(
-                        onPressed: () => _addPinFromInput(),
+                        onPressed: _addPinFromInput,
                         child: const Text('Add'),
                       ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
                         onPressed: () async {
                           final imported = await _promptImportJson(context);
                           if (imported != null) {
                             await _savePinningConfig(imported);
                           }
                         },
-                        child: const Text('Import'),
+                        icon: const Icon(Icons.upload_file, size: 18),
+                        label: const Text('Import'),
                       ),
                       const SizedBox(width: 8),
-                      OutlinedButton(
+                      TextButton.icon(
                         onPressed: () => _promptExportJson(context, _pinning),
-                        child: const Text('Export'),
+                        icon: const Icon(Icons.download, size: 18),
+                        label: const Text('Export'),
                       ),
                     ],
                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Per-Stack Configuration',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Enable pinning for specific HTTP stacks',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildStackRow(
+                    key: 'httpUrlConnection',
+                    label: 'HttpURLConnection',
+                    techniques: const [PinningTechnique.postConnect],
+                  ),
+                  _buildStackRow(
+                    key: 'okHttp',
+                    label: 'OkHttp',
+                    techniques: const [
+                      PinningTechnique.postConnect,
+                      PinningTechnique.okhttpPinner,
+                    ],
+                    badge:
+                        _pinning.mode == PinningMode.certHash &&
+                            (_pinning.stacks['okHttp']?.technique ==
+                                PinningTechnique.okhttpPinner)
+                        ? '(SPKI only)'
+                        : null,
+                  ),
+                  _buildStackRow(
+                    key: 'nativeCurl',
+                    label: 'NDK libcurl',
+                    techniques: const [
+                      PinningTechnique.curlPreflight,
+                      PinningTechnique.curlSslCtx,
+                      PinningTechnique.curlBoth,
+                    ],
+                  ),
+                  _buildStackRow(
+                    key: 'cronet',
+                    label: 'Cronet',
+                    techniques: const [],
+                    badge: '(SPKI only)',
+                    disabled: _pinning.mode == PinningMode.certHash,
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(),
                   const SizedBox(height: 8),
                   const Text(
-                    'Import format example:',
+                    'dart:io Stacks',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
+                  _buildStackRow(
+                    key: 'dartIo',
+                    label: 'dart:io (HttpClient)',
+                    techniques: const [],
+                    badge: _useGlobalOverride ? '(via global override)' : null,
+                  ),
+                  _buildStackRow(
+                    key: 'packageHttp',
+                    label: 'package:http',
+                    techniques: const [],
+                    badge: _useGlobalOverride ? '(via global override)' : null,
+                  ),
+                  const SizedBox(height: 12),
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Theme.of(
                         context,
                       ).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: SelectableText(
-                      '{\n  "enabled": true,\n  "mode": "publicKey",\n  "spkiPins": ["47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="],\n  "certSha256Pins": [],\n  "techniques": {\n    "default": "auto",\n    "overrides": { "okHttp": "okhttpPinner", "nativeCurl": "curlBoth" }\n  }\n}',
-                      style: const TextStyle(fontFamily: 'monospace'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.settings, size: 18),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Alternative: Global HttpOverrides',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SwitchListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Use global dart:io override'),
+                          subtitle: const Text(
+                            'Replaces per-stack for all dart:io-based stacks',
+                          ),
+                          value: _useGlobalOverride,
+                          onChanged: _saveGlobalOverrideSetting,
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -398,49 +381,77 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildStackOverrideRow({
+  Widget _buildStackRow({
+    required String key,
     required String label,
-    required String stackKey,
-    required List<PinningTechnique> allowed,
+    required List<PinningTechnique> techniques,
+    String? badge,
+    bool disabled = false,
   }) {
-    final effective =
-        _pinning.stackOverrides[stackKey] ?? PinningTechnique.auto;
+    final config = _pinning.stacks[key] ?? const StackPinConfig.disabled();
+    final isEnabled = config.enabled && !disabled;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
+          Checkbox(
+            value: isEnabled,
+            onChanged: disabled ? null : (v) => _toggleStack(key, v ?? false),
+          ),
           Expanded(
             flex: 2,
-            child: Text(label, overflow: TextOverflow.ellipsis),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 3,
-            child: DropdownButton<PinningTechnique>(
-              isExpanded: true,
-              value: effective,
-              items: allowed
-                  .map(
-                    (t) => DropdownMenuItem(
-                      value: t,
-                      child: Text(_techniqueLabel(t)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: disabled ? Theme.of(context).disabledColor : null,
+                  ),
+                ),
+                if (badge != null)
+                  Text(
+                    badge,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: disabled
+                          ? Theme.of(context).disabledColor
+                          : Colors.orange,
+                      fontSize: 11,
                     ),
-                  )
-                  .toList(),
-              onChanged: (t) {
-                if (t == null) return;
-                final next = Map<String, PinningTechnique>.from(
-                  _pinning.stackOverrides,
-                );
-                if (t == PinningTechnique.auto) {
-                  next.remove(stackKey);
-                } else {
-                  next[stackKey] = t;
-                }
-                _savePinningConfig(_pinning.copyWith(stackOverrides: next));
-              },
+                  ),
+              ],
             ),
           ),
+          if (techniques.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 3,
+              child: DropdownButton<PinningTechnique>(
+                isExpanded: true,
+                isDense: true,
+                value: config.technique,
+                items: techniques
+                    .map(
+                      (t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(
+                          _techniqueLabel(t),
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (isEnabled && !disabled)
+                    ? (t) {
+                        if (t != null) _setStackTechnique(key, t);
+                      }
+                    : null,
+              ),
+            ),
+          ] else
+            const Expanded(flex: 3, child: SizedBox()),
         ],
       ),
     );
@@ -448,44 +459,53 @@ class _SettingsPageState extends State<SettingsPage> {
 
   String _techniqueLabel(PinningTechnique t) {
     switch (t) {
-      case PinningTechnique.auto:
-        return 'Auto';
       case PinningTechnique.none:
         return 'None';
       case PinningTechnique.postConnect:
         return 'Post-Connect';
       case PinningTechnique.okhttpPinner:
-        return 'OkHttp CertificatePinner';
+        return 'CertificatePinner';
       case PinningTechnique.curlPreflight:
-        return 'libcurl Preflight';
+        return 'Preflight';
       case PinningTechnique.curlSslCtx:
-        return 'libcurl SSL_CTX Callback';
+        return 'SSL_CTX Callback';
       case PinningTechnique.curlBoth:
-        return 'libcurl Both';
+        return 'Both';
     }
   }
 
-  void _showTechniqueAutoInfo() {
+  void _showModeInfo() {
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Technique: Auto'),
+        title: const Text('Pinning Modes'),
         content: const SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Auto selects a sensible default technique per stack:'),
-              SizedBox(height: 8),
-              Text('- HttpURLConnection: Post-Connect verification'),
               Text(
-                '- OkHttp: CertificatePinner for SPKI, otherwise Post-Connect',
+                'Public Key (SPKI):',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              Text('- NDK libcurl: Preflight + SSL_CTX Callback (both)'),
-              Text('- Cronet: SPKI (Public Key) enforcement; no cert-hash'),
+              SizedBox(height: 4),
+              Text(
+                'Pins the server public key. More resilient across certificate renewals. Recommended for most use cases.',
+              ),
               SizedBox(height: 12),
-              Text('Notes:'),
-              Text('- Per-Stack Overrides override Auto.'),
-              Text('- If pinning is globally disabled, nothing is enforced.'),
+              Text(
+                'Certificate Hash:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Pins the full leaf certificate fingerprint. Use only when you must pin the exact certificate.',
+              ),
+              SizedBox(height: 12),
+              Text(
+                '⚠️ Note: Some techniques only support SPKI mode (e.g., OkHttp CertificatePinner, Cronet).',
+                style: TextStyle(fontSize: 12),
+              ),
             ],
           ),
         ),
@@ -499,13 +519,41 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  void _addPinFromInput() {
+    final v = _pinInputController.text.trim();
+    if (v.isEmpty) return;
+    if (!isBase64Sha256(v)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid base64 SHA-256 value')),
+      );
+      return;
+    }
+    final activePins = _pinning.mode == PinningMode.publicKey
+        ? _pinning.spkiPins
+        : _pinning.certSha256Pins;
+    final list = List<String>.from(activePins)..add(v);
+    _savePinningConfig(
+      _pinning.mode == PinningMode.publicKey
+          ? _pinning.copyWith(spkiPins: list)
+          : _pinning.copyWith(certSha256Pins: list),
+    );
+    _pinInputController.clear();
+  }
+
   Future<PinningConfig?> _promptImportJson(BuildContext ctx) async {
     final controller = TextEditingController();
     return await showDialog<PinningConfig>(
       context: ctx,
       builder: (_) => AlertDialog(
-        title: const Text('Import pins (JSON)'),
-        content: TextField(controller: controller, maxLines: 8),
+        title: const Text('Import Configuration'),
+        content: TextField(
+          controller: controller,
+          maxLines: 8,
+          decoration: const InputDecoration(
+            hintText: '{"enabled": true, "mode": "publicKey", ...}',
+            border: OutlineInputBorder(),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -529,45 +577,27 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _addPinFromInput() {
-    final v = _pinInputController.text.trim();
-    if (v.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('No pin to add')));
-      return;
-    }
-    if (!isBase64Sha256(v)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid base64 SHA-256 value')),
-      );
-      return;
-    }
-    final activePins = _pinning.mode == PinningMode.publicKey
-        ? _pinning.spkiPins
-        : _pinning.certSha256Pins;
-    final list = List<String>.from(activePins)..add(v);
-    final next = _pinning.mode == PinningMode.publicKey
-        ? _pinning.copyWith(spkiPins: list)
-        : _pinning.copyWith(certSha256Pins: list);
-    _savePinningConfig(next);
-    _pinInputController.clear();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Pin added')));
-  }
-
   void _promptExportJson(BuildContext ctx, PinningConfig cfg) {
     final json = PinningConfig.exportJson(cfg);
-    showDialog(
+    showDialog<void>(
       context: ctx,
       builder: (_) => AlertDialog(
-        title: const Text('Export pins (JSON)'),
+        title: const Text('Export Configuration'),
         content: SelectableText(
           json,
-          style: const TextStyle(fontFamily: 'monospace'),
+          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
         ),
         actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: json));
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('Copied to clipboard')),
+              );
+            },
+            child: const Text('Copy'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Close'),

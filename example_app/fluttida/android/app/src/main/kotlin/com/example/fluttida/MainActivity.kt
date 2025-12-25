@@ -48,8 +48,6 @@ class MainActivity : FlutterActivity() {
 
 	// Technique selection
 	@Volatile
-	private var defaultTechnique: String = "auto"
-	@Volatile
 	private var techHttpUrlConnection: String? = null
 	@Volatile
 	private var techOkHttp: String? = null
@@ -75,14 +73,10 @@ class MainActivity : FlutterActivity() {
 						// techniques
 						val techs = pin["techniques"] as? Map<*, *>
 						techs?.let {
-							defaultTechnique = (it["default"] as? String) ?: "auto"
-							val ov = it["overrides"] as? Map<*, *>
-							ov?.let { m ->
-								techHttpUrlConnection = (m["httpUrlConnection"] as? String)
-								techOkHttp = (m["okHttp"] as? String)
-								techNativeCurl = (m["nativeCurl"] as? String)
-								techCronet = (m["cronet"] as? String)
-							}
+							techHttpUrlConnection = (it["httpUrlConnection"] as? String)
+							techOkHttp = (it["okHttp"] as? String)
+							techNativeCurl = (it["nativeCurl"] as? String)
+							techCronet = (it["cronet"] as? String)
 						}
 						// Rebuild Cronet engine with new pins
 						rebuildCronetEngine()
@@ -278,8 +272,7 @@ class MainActivity : FlutterActivity() {
 		val builder = CronetEngine.Builder(this)
 		
 		// Apply pinning if enabled and mode is publicKey (SPKI)
-		val effTech = techCronet ?: defaultTechnique
-		if (globalPinningEnabled && effTech != "none" && globalPinningMode == "publicKey" && globalSpkiPins.isNotEmpty()) {
+		if (globalPinningEnabled && techCronet != null && techCronet != "none" && globalPinningMode == "publicKey" && globalSpkiPins.isNotEmpty()) {
 			try {
 				// Cronet expects a Set<ByteArray> with raw SHA-256 bytes and a java.util.Date expiration
 				val pinSet = mutableSetOf<ByteArray>()
@@ -416,8 +409,7 @@ class MainActivity : FlutterActivity() {
 			val status = conn.responseCode
 			// Technique selection: only post-connect supported here
 			try {
-				val effTech = effectiveHttpUrlConnTech()
-				if (globalPinningEnabled && effTech != "none" && conn is javax.net.ssl.HttpsURLConnection) {
+				if (globalPinningEnabled && techHttpUrlConnection != null && techHttpUrlConnection != "none" && conn is javax.net.ssl.HttpsURLConnection) {
 					val certs = conn.serverCertificates
 					if (certs != null && certs.isNotEmpty()) {
 						val x509 = certs[0] as java.security.cert.X509Certificate
@@ -458,7 +450,7 @@ class MainActivity : FlutterActivity() {
 				.readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
 
 			// Technique selection for OkHttp
-			val effTech = (techOkHttp ?: defaultTechnique)
+			val effTech = techOkHttp
 			val usePinner = globalPinningEnabled && effTech == "okhttpPinner" && globalPinningMode == "publicKey"
 			if (usePinner) {
 				try {
@@ -519,10 +511,10 @@ class MainActivity : FlutterActivity() {
 	}
 
 	private fun effectiveHttpUrlConnTech(): String {
-		return techHttpUrlConnection ?: defaultTechnique
+		return techHttpUrlConnection ?: "postConnect"
 	}
 
 	private fun effectiveNativeCurlTech(): String {
-		return techNativeCurl ?: defaultTechnique
+		return techNativeCurl ?: "curlBoth"
 	}
 }

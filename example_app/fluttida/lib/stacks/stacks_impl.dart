@@ -20,20 +20,26 @@ class StacksImpl {
   static final io.HttpOverrides _noOverrides = _NoOverrides();
   // Current pinning configuration used by dart:io path
   static PinningConfig _currentPinningConfig = const PinningConfig.disabled();
+  static bool _globalOverrideEnabled = false;
   static void Function(String)? _logSink;
 
   // Global pinning propagation. Safe if native side doesn't implement.
   static Future<void> setGlobalPinningConfig(PinningConfig cfg) async {
+    // Build techniques map from per-stack configs
+    final techniques = <String, String>{};
+    cfg.stacks.forEach((key, config) {
+      if (config.enabled) {
+        techniques[key] = config.technique.name;
+      }
+    });
+
     final payload = {
       'pinning': {
         'enabled': cfg.enabled,
         'mode': cfg.mode.name, // 'publicKey' | 'certHash'
         'spkiPins': cfg.spkiPins,
         'certSha256Pins': cfg.certSha256Pins,
-        'techniques': {
-          'default': cfg.defaultTechnique.name,
-          'overrides': cfg.stackOverrides.map((k, v) => MapEntry(k, v.name)),
-        },
+        'techniques': techniques,
       },
     };
     try {
@@ -47,6 +53,10 @@ class StacksImpl {
 
   static void setLogSink(void Function(String) sink) {
     _logSink = sink;
+  }
+
+  static void setGlobalOverrideEnabled(bool enabled) {
+    _globalOverrideEnabled = enabled;
   }
 
   static Future<bool> isCronetPinningSupported() async {
@@ -89,6 +99,20 @@ class StacksImpl {
   // details so we can see whether the callback is being invoked at runtime.
   // In debug builds the callback rejects the certificate to surface pinning
   // problems; in release builds it preserves the previous (accept) behavior.
+  static bool _shouldPinDartIoRaw() {
+    final cfg = _currentPinningConfig;
+    if (_globalOverrideEnabled) return true;
+    if (!cfg.enabled) return false;
+    return cfg.stacks['dartIo']?.enabled == true;
+  }
+
+  static bool _shouldPinPackageHttp() {
+    final cfg = _currentPinningConfig;
+    if (_globalOverrideEnabled) return true;
+    if (!cfg.enabled) return false;
+    return cfg.stacks['packageHttp']?.enabled == true;
+  }
+
   static io.HttpClient _createInstrumentedHttpClient() {
     final client = _newHttpClientRaw();
     client.badCertificateCallback =
@@ -184,7 +208,14 @@ class StacksImpl {
 
   // Enable global HttpOverrides so all `HttpClient` instances use our instrumented client
   static void enableGlobalHttpOverrides() {
+    _globalOverrideEnabled = true;
     io.HttpOverrides.global = _PinnedHttpOverrides();
+  }
+
+  // Disable global HttpOverrides (reset to null)
+  static void disableGlobalHttpOverrides() {
+    _globalOverrideEnabled = false;
+    io.HttpOverrides.global = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -193,7 +224,9 @@ class StacksImpl {
   static Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
     final sw = Stopwatch()..start();
     try {
-      final client = _createInstrumentedHttpClient();
+      final client = _shouldPinDartIoRaw()
+          ? _createInstrumentedHttpClient()
+          : io.HttpClient();
       client.connectionTimeout = cfg.timeout;
 
       final uri = Uri.parse(cfg.url);
@@ -252,6 +285,7 @@ class StacksImpl {
     final sw = Stopwatch()..start();
     try {
       final uri = Uri.parse(cfg.url);
+      final usePinning = _shouldPinPackageHttp();
 
       final http.Request r = http.Request(cfg.method, uri);
       r.headers.addAll(cfg.headers);
@@ -259,7 +293,9 @@ class StacksImpl {
         r.body = cfg.body!;
       }
 
-      final client = IOClient(_createInstrumentedHttpClient());
+      final http.Client client = usePinning
+          ? IOClient(_createInstrumentedHttpClient())
+          : http.Client();
       final streamed = await client.send(r);
       client.close();
       final resp = await http.Response.fromStream(streamed);
@@ -289,10 +325,15 @@ class StacksImpl {
   ) async {
     final sw = Stopwatch()..start();
     try {
-      final ioHttpClient = _createInstrumentedHttpClient();
-      _log(
-        '[PIN DEBUG] requestHttpViaExplicitIoClient: instrumented HttpClient created',
-      );
+      final usePinning = _shouldPinPackageHttp();
+      final ioHttpClient = usePinning
+          ? _createInstrumentedHttpClient()
+          : io.HttpClient();
+      if (usePinning) {
+        _log(
+          '[PIN DEBUG] requestHttpViaExplicitIoClient: instrumented HttpClient created',
+        );
+      }
       ioHttpClient.connectionTimeout = cfg.timeout;
 
       final client = IOClient(ioHttpClient);

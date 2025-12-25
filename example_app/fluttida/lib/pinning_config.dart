@@ -4,7 +4,6 @@ enum PinningMode { publicKey, certHash }
 
 // Technique options for how each stack enforces pinning
 enum PinningTechnique {
-  auto, // default behavior per stack
   none, // disable enforcement for the stack
   postConnect, // post-connect verification in client (HttpURLConnection/OkHttp)
   okhttpPinner, // OkHttp CertificatePinner (SPKI only)
@@ -13,53 +12,30 @@ enum PinningTechnique {
   curlBoth, // Native curl: preflight + SSL_CTX
 }
 
-class PinningConfig {
+// Per-stack pinning configuration
+class StackPinConfig {
   final bool enabled;
-  final PinningMode mode;
-  final List<String> spkiPins; // base64 SHA-256 of SPKI
-  final List<String> certSha256Pins; // base64 SHA-256 of full cert
+  final PinningTechnique technique;
 
-  // Technique selection
-  final PinningTechnique defaultTechnique;
-  final Map<String, PinningTechnique>
-  stackOverrides; // keys: httpUrlConnection, okHttp, nativeCurl, cronet
+  const StackPinConfig({required this.enabled, required this.technique});
 
-  const PinningConfig({
-    required this.enabled,
-    required this.mode,
-    required this.spkiPins,
-    required this.certSha256Pins,
-    this.defaultTechnique = PinningTechnique.auto,
-    this.stackOverrides = const {},
-  });
-
-  const PinningConfig.disabled()
+  const StackPinConfig.disabled()
     : enabled = false,
-      mode = PinningMode.publicKey,
-      spkiPins = const [],
-      certSha256Pins = const [],
-      defaultTechnique = PinningTechnique.auto,
-      stackOverrides = const {};
+      technique = PinningTechnique.postConnect;
 
-  PinningConfig copyWith({
-    bool? enabled,
-    PinningMode? mode,
-    List<String>? spkiPins,
-    List<String>? certSha256Pins,
-    PinningTechnique? defaultTechnique,
-    Map<String, PinningTechnique>? stackOverrides,
-  }) {
-    return PinningConfig(
-      enabled: enabled ?? this.enabled,
-      mode: mode ?? this.mode,
-      spkiPins: spkiPins ?? this.spkiPins,
-      certSha256Pins: certSha256Pins ?? this.certSha256Pins,
-      defaultTechnique: defaultTechnique ?? this.defaultTechnique,
-      stackOverrides: stackOverrides ?? this.stackOverrides,
+  Map<String, dynamic> toJson() => {
+    'enabled': enabled,
+    'technique': technique.name,
+  };
+
+  static StackPinConfig fromJson(Map<String, dynamic>? m) {
+    if (m == null) return const StackPinConfig.disabled();
+    return StackPinConfig(
+      enabled: m['enabled'] == true,
+      technique: _techFromName(m['technique'] as String?),
     );
   }
 
-  static String _techToName(PinningTechnique t) => t.name;
   static PinningTechnique _techFromName(String? s) {
     switch (s) {
       case 'none':
@@ -74,10 +50,51 @@ class PinningConfig {
         return PinningTechnique.curlSslCtx;
       case 'curlBoth':
         return PinningTechnique.curlBoth;
-      case 'auto':
       default:
-        return PinningTechnique.auto;
+        return PinningTechnique.postConnect;
     }
+  }
+}
+
+class PinningConfig {
+  final bool enabled;
+  final PinningMode mode;
+  final List<String> spkiPins; // base64 SHA-256 of SPKI
+  final List<String> certSha256Pins; // base64 SHA-256 of full cert
+
+  // Per-stack configuration
+  final Map<String, StackPinConfig>
+  stacks; // keys: httpUrlConnection, okHttp, nativeCurl, cronet, dartIo
+
+  const PinningConfig({
+    required this.enabled,
+    required this.mode,
+    required this.spkiPins,
+    required this.certSha256Pins,
+    this.stacks = const {},
+  });
+
+  const PinningConfig.disabled()
+    : enabled = false,
+      mode = PinningMode.publicKey,
+      spkiPins = const [],
+      certSha256Pins = const [],
+      stacks = const {};
+
+  PinningConfig copyWith({
+    bool? enabled,
+    PinningMode? mode,
+    List<String>? spkiPins,
+    List<String>? certSha256Pins,
+    Map<String, StackPinConfig>? stacks,
+  }) {
+    return PinningConfig(
+      enabled: enabled ?? this.enabled,
+      mode: mode ?? this.mode,
+      spkiPins: spkiPins ?? this.spkiPins,
+      certSha256Pins: certSha256Pins ?? this.certSha256Pins,
+      stacks: stacks ?? this.stacks,
+    );
   }
 
   Map<String, dynamic> toJson() => {
@@ -85,10 +102,7 @@ class PinningConfig {
     'mode': mode.name,
     'spkiPins': spkiPins,
     'certSha256Pins': certSha256Pins,
-    'techniques': {
-      'default': _techToName(defaultTechnique),
-      'overrides': stackOverrides.map((k, v) => MapEntry(k, _techToName(v))),
-    },
+    'stacks': stacks.map((k, v) => MapEntry(k, v.toJson())),
   };
 
   static PinningConfig fromJson(Map<String, dynamic> m) {
@@ -97,19 +111,30 @@ class PinningConfig {
         ? PinningMode.certHash
         : PinningMode.publicKey;
 
-    // techniques (backward compatible)
-    PinningTechnique defTech = PinningTechnique.auto;
-    Map<String, PinningTechnique> overrides = const {};
-    final techs = m['techniques'];
-    if (techs is Map) {
-      defTech = _techFromName(techs['default'] as String?);
-      final ov = techs['overrides'];
-      if (ov is Map) {
-        final tmp = <String, PinningTechnique>{};
-        ov.forEach((k, v) {
-          if (k is String) tmp[k] = _techFromName(v as String?);
-        });
-        overrides = tmp;
+    // Parse stacks (backward compatible with old 'techniques' format)
+    Map<String, StackPinConfig> stacks = {};
+    final stacksData = m['stacks'];
+    if (stacksData is Map) {
+      stacksData.forEach((k, v) {
+        if (k is String && v is Map<String, dynamic>) {
+          stacks[k] = StackPinConfig.fromJson(v);
+        }
+      });
+    } else {
+      // Backward compat: try reading old 'techniques.overrides' format
+      final techs = m['techniques'];
+      if (techs is Map) {
+        final ov = techs['overrides'];
+        if (ov is Map) {
+          ov.forEach((k, v) {
+            if (k is String) {
+              stacks[k] = StackPinConfig(
+                enabled: true,
+                technique: StackPinConfig._techFromName(v as String?),
+              );
+            }
+          });
+        }
       }
     }
 
@@ -119,8 +144,7 @@ class PinningConfig {
       spkiPins: (m['spkiPins'] as List?)?.cast<String>() ?? const [],
       certSha256Pins:
           (m['certSha256Pins'] as List?)?.cast<String>() ?? const [],
-      defaultTechnique: defTech,
-      stackOverrides: overrides,
+      stacks: stacks,
     );
   }
 
