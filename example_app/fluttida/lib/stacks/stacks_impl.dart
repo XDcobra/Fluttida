@@ -13,6 +13,8 @@ import 'package:cupertino_http/cupertino_http.dart' as cupertino_http;
 import '../lab_screen.dart';
 import '../pinning_config.dart';
 import '../pinning/global_http_override.dart';
+import '../pinning/stacks/dart_io_pinning.dart';
+import '../pinning/stacks/package_http_pinning.dart';
 
 class StacksImpl {
   static const MethodChannel _legacyChannel = MethodChannel('fluttida/network');
@@ -91,11 +93,11 @@ class StacksImpl {
   // In debug builds the callback rejects the certificate to surface pinning
   // problems; in release builds it preserves the previous (accept) behavior.
   static bool _shouldPinDartIoRaw() {
-    return GlobalHttpOverride.shouldPinDartIo();
+    return DartIoPinning.shouldPin();
   }
 
   static bool _shouldPinPackageHttp() {
-    return GlobalHttpOverride.shouldPinPackageHttp();
+    return PackageHttpPinning.shouldPin();
   }
 
   static io.HttpClient _createInstrumentedHttpClient() {
