@@ -325,14 +325,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 8),
                   _buildStackRow(
-                    key: 'dartIo',
-                    label: 'dart:io (HttpClient)',
+                    key: 'dartIoRaw',
+                    label: 'dart:io (raw HttpClient)',
                     techniques: const [],
                     badge: _useGlobalOverride ? '(via global override)' : null,
                   ),
                   _buildStackRow(
-                    key: 'packageHttp',
-                    label: 'package:http',
+                    key: 'dartIoHttp',
+                    label: 'package:http (default)',
+                    techniques: const [],
+                    badge: _useGlobalOverride ? '(via global override)' : null,
+                  ),
+                  _buildStackRow(
+                    key: 'dartIoHttpExplicit',
+                    label: 'package:http (via IOClient)',
                     techniques: const [],
                     badge: _useGlobalOverride ? '(via global override)' : null,
                   ),
@@ -431,7 +437,9 @@ class _SettingsPageState extends State<SettingsPage> {
               child: DropdownButton<PinningTechnique>(
                 isExpanded: true,
                 isDense: true,
-                value: config.technique,
+                value: techniques.contains(config.technique)
+                    ? config.technique
+                    : null,
                 items: techniques
                     .map(
                       (t) => DropdownMenuItem(

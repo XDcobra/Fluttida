@@ -18,6 +18,8 @@ class GlobalHttpOverride {
     _config = cfg;
   }
 
+  static PinningConfig get currentConfig => _config;
+
   static void setLogSink(void Function(String)? sink) {
     _logSink = sink;
   }
@@ -35,15 +37,15 @@ class GlobalHttpOverride {
   }
 
   static bool shouldPinDartIo() {
+    if (!_config.enabled) return false; // Global disabled = ignore all
     if (_globalOverrideEnabled) return true;
-    if (!_config.enabled) return false;
-    return _config.stacks['dartIo']?.enabled == true;
+    return _config.stacks['dartIoRaw']?.enabled == true;
   }
 
   static bool shouldPinPackageHttp() {
+    if (!_config.enabled) return false; // Global disabled = ignore all
     if (_globalOverrideEnabled) return true;
-    if (!_config.enabled) return false;
-    return _config.stacks['packageHttp']?.enabled == true;
+    return _config.stacks['dartIoHttp']?.enabled == true;
   }
 
   static io.HttpClient createInstrumentedHttpClient() {

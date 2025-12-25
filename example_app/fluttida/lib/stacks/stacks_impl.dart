@@ -96,14 +96,6 @@ class StacksImpl {
     return DartIoPinning.shouldPin();
   }
 
-  static bool _shouldPinPackageHttp() {
-    return PackageHttpPinning.shouldPin();
-  }
-
-  static io.HttpClient _createInstrumentedHttpClient() {
-    return GlobalHttpOverride.createInstrumentedHttpClient();
-  }
-
   static void _log(String msg) {
     // Console log for dev
     // ignore: avoid_print
@@ -130,7 +122,7 @@ class StacksImpl {
     final sw = Stopwatch()..start();
     try {
       final client = _shouldPinDartIoRaw()
-          ? _createInstrumentedHttpClient()
+          ? DartIoPinning.createClient()
           : io.HttpClient();
       client.connectionTimeout = cfg.timeout;
 
@@ -190,7 +182,15 @@ class StacksImpl {
     final sw = Stopwatch()..start();
     try {
       final uri = Uri.parse(cfg.url);
-      final usePinning = _shouldPinPackageHttp();
+      final usePinning = PackageHttpPinning.shouldPinDefault();
+      _log('[DEBUG] requestHttpDefault: usePinning=$usePinning');
+
+      final ioHttpClient = usePinning
+          ? PackageHttpPinning.createClient()
+          : io.HttpClient();
+      ioHttpClient.connectionTimeout = cfg.timeout;
+
+      final client = IOClient(ioHttpClient);
 
       final http.Request r = http.Request(cfg.method, uri);
       r.headers.addAll(cfg.headers);
@@ -198,12 +198,9 @@ class StacksImpl {
         r.body = cfg.body!;
       }
 
-      final http.Client client = usePinning
-          ? IOClient(_createInstrumentedHttpClient())
-          : http.Client();
       final streamed = await client.send(r);
-      client.close();
       final resp = await http.Response.fromStream(streamed);
+      client.close();
 
       sw.stop();
       return RequestResult(
@@ -230,9 +227,9 @@ class StacksImpl {
   ) async {
     final sw = Stopwatch()..start();
     try {
-      final usePinning = _shouldPinPackageHttp();
+      final usePinning = PackageHttpPinning.shouldPinViaIOClient();
       final ioHttpClient = usePinning
-          ? _createInstrumentedHttpClient()
+          ? PackageHttpPinning.createClient()
           : io.HttpClient();
       if (usePinning) {
         _log(
