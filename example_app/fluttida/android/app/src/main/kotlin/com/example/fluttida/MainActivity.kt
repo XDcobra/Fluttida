@@ -542,6 +542,8 @@ class MainActivity : FlutterActivity() {
 	}
 
 	private fun effectiveNativeCurlTech(): String {
-		return techNativeCurl ?: "curlBoth"
+		// Return technique only if stack is actually enabled
+		// If techNativeCurl is null, the stack is not enabled -> return "none"
+		return techNativeCurl ?: "none"
 	}
 }
