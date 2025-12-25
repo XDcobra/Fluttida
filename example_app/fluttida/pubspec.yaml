@@ -12,6 +12,8 @@ dependencies:
   cupertino_http: ^2.4.0
   http: ^1.2.2
   webview_flutter: ^4.10.0
+  crypto: ^3.0.7
+  asn1lib: ^1.1.0
   google_mobile_ads: ^7.0.0
   shared_preferences: ^2.3.2
 

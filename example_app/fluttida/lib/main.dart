@@ -6,6 +6,9 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   MobileAds.instance.initialize();
+  // Enable global HttpOverrides so all dart:io HttpClient instances
+  // use the instrumented client that enforces our pinning checks.
+  StacksImpl.enableGlobalHttpOverrides();
   runApp(const MyApp());
 }
 

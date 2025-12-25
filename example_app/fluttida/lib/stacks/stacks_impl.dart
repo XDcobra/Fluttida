@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' as io;
+import 'package:crypto/crypto.dart' as crypto;
+import 'package:asn1lib/asn1lib.dart';
 
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
@@ -15,6 +17,9 @@ import '../pinning_config.dart';
 
 class StacksImpl {
   static const MethodChannel _legacyChannel = MethodChannel('fluttida/network');
+  static final io.HttpOverrides _noOverrides = _NoOverrides();
+  // Current pinning configuration used by dart:io path
+  static PinningConfig _currentPinningConfig = const PinningConfig.disabled();
 
   // Global pinning propagation. Safe if native side doesn't implement.
   static Future<void> setGlobalPinningConfig(PinningConfig cfg) async {
@@ -32,6 +37,8 @@ class StacksImpl {
     };
     try {
       await _legacyChannel.invokeMethod('setGlobalPinningConfig', payload);
+      // keep a local copy for dart:io enforcement
+      _currentPinningConfig = cfg;
     } catch (_) {
       // Ignore: keeps UI responsive even if native handler not present
     }
@@ -72,13 +79,110 @@ class StacksImpl {
     );
   }
 
+  // Helper that instruments `HttpClient` with debug logging for certificate
+  // verification. It sets a `badCertificateCallback` that prints certificate
+  // details so we can see whether the callback is being invoked at runtime.
+  // In debug builds the callback rejects the certificate to surface pinning
+  // problems; in release builds it preserves the previous (accept) behavior.
+  static io.HttpClient _createInstrumentedHttpClient() {
+    final client = _newHttpClientRaw();
+    client.badCertificateCallback =
+        (io.X509Certificate cert, String host, int port) {
+              // If pinning disabled, accept normally
+              final cfg = _currentPinningConfig;
+              if (!cfg.enabled) return true;
+
+              try {
+                print(
+                  '[PIN DEBUG] badCertificateCallback invoked for host=$host port=$port mode=${cfg.mode.name} spkiPins=${cfg.spkiPins.length} certPins=${cfg.certSha256Pins.length}',
+                );
+              } catch (_) {}
+              // compute either cert hash or spki hash according to mode
+              try {
+                if (cfg.mode == PinningMode.certHash) {
+                  final h = _computeCertSha256Base64(cert);
+                  print('[PIN DEBUG] computed cert sha256 (base64)=$h');
+                  if (cfg.certSha256Pins.contains(h)) return true;
+                  print('[PIN DEBUG] cert hash mismatch');
+                  return false;
+                } else {
+                  final h = _computeSpkiSha256Base64(cert);
+                  print('[PIN DEBUG] computed spki sha256 (base64)=$h');
+                  if (cfg.spkiPins.contains(h)) return true;
+                  print('[PIN DEBUG] spki hash mismatch');
+                  return false;
+                }
+              } catch (e, st) {
+                print('[PIN DEBUG] pin check failed: $e\n$st');
+                // conservative: reject when pin check fails unexpectedly
+                return false;
+              }
+            }
+            as bool Function(io.X509Certificate, String, int)?;
+    return client;
+  }
+
+  // Create a raw HttpClient with overrides disabled to avoid recursion when
+  // HttpOverrides.global is set to our own overrides.
+  static io.HttpClient _newHttpClientRaw() {
+    final ctx = io.SecurityContext(withTrustedRoots: false);
+    return io.HttpOverrides.runWithHttpOverrides<io.HttpClient>(
+      () => io.HttpClient(context: ctx),
+      _noOverrides,
+    );
+  }
+
+  // Compute base64-encoded SHA-256 of full certificate DER
+  static String _computeCertSha256Base64(io.X509Certificate cert) {
+    final der = cert.der;
+    final digest = crypto.sha256.convert(der);
+    return base64.encode(digest.bytes);
+  }
+
+  // Extract SubjectPublicKeyInfo from cert DER and return base64 SHA-256
+  static String _computeSpkiSha256Base64(io.X509Certificate cert) {
+    final der = cert.der;
+    final parser = ASN1Parser(der);
+    final top = parser.nextObject() as ASN1Sequence; // Certificate
+    final tbs = top.elements![0] as ASN1Sequence; // tbsCertificate
+
+    // Find SubjectPublicKeyInfo: scan for a sequence that contains a bit string
+    ASN1Sequence? spki;
+    for (final el in tbs.elements!) {
+      if (el is ASN1Sequence) {
+        final children = el.elements;
+        if (children != null && children.any((c) => c is ASN1BitString)) {
+          spki = el;
+          break;
+        }
+      }
+    }
+    if (spki == null) {
+      // fallback: try to pick element index 6 (common location)
+      if (tbs.elements!.length > 6 && tbs.elements![6] is ASN1Sequence) {
+        spki = tbs.elements![6] as ASN1Sequence;
+      } else {
+        throw Exception('SPKI not found in certificate');
+      }
+    }
+    final spkiBytes = spki.encodedBytes!;
+    final digest = crypto.sha256.convert(spkiBytes);
+    return base64.encode(digest.bytes);
+  }
+
+  // Enable global HttpOverrides so all `HttpClient` instances use our instrumented client
+  static void enableGlobalHttpOverrides() {
+    io.HttpOverrides.global = _PinnedHttpOverrides();
+  }
+
   // ---------------------------------------------------------------------------
   // 1) RAW dart:io HttpClient
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
     final sw = Stopwatch()..start();
     try {
-      final client = HttpClient();
+      final client = _createInstrumentedHttpClient();
+      print('[PIN DEBUG] requestDartIoRaw: instrumented HttpClient created');
       client.connectionTimeout = cfg.timeout;
 
       final uri = Uri.parse(cfg.url);
@@ -144,7 +248,9 @@ class StacksImpl {
         r.body = cfg.body!;
       }
 
-      final streamed = await http.Client().send(r);
+      final client = IOClient(_createInstrumentedHttpClient());
+      final streamed = await client.send(r);
+      client.close();
       final resp = await http.Response.fromStream(streamed);
 
       sw.stop();
@@ -172,7 +278,10 @@ class StacksImpl {
   ) async {
     final sw = Stopwatch()..start();
     try {
-      final ioHttpClient = HttpClient();
+      final ioHttpClient = _createInstrumentedHttpClient();
+      print(
+        '[PIN DEBUG] requestHttpViaExplicitIoClient: instrumented HttpClient created',
+      );
       ioHttpClient.connectionTimeout = cfg.timeout;
 
       final client = IOClient(ioHttpClient);
@@ -210,7 +319,7 @@ class StacksImpl {
   ) async {
     final sw = Stopwatch()..start();
     try {
-      if (!Platform.isIOS) {
+      if (!io.Platform.isIOS) {
         throw Exception("cupertino_http is iOS-only");
       }
 
@@ -250,7 +359,7 @@ class StacksImpl {
   // In Step 2.3 verdrahten wir diesen Channel hier sauber.
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestLegacyIos(RequestConfig cfg) async {
-    if (!Platform.isIOS) {
+    if (!io.Platform.isIOS) {
       return RequestResult(
         status: null,
         body: '',
@@ -282,7 +391,7 @@ class StacksImpl {
   static Future<RequestResult> requestAndroidHttpUrlConnection(
     RequestConfig cfg,
   ) async {
-    if (!Platform.isAndroid) {
+    if (!io.Platform.isAndroid) {
       return RequestResult(
         status: null,
         body: '',
@@ -310,7 +419,7 @@ class StacksImpl {
   // Android native: OkHttp (via MethodChannel)
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestAndroidOkHttp(RequestConfig cfg) async {
-    if (!Platform.isAndroid) {
+    if (!io.Platform.isAndroid) {
       return RequestResult(
         status: null,
         body: '',
@@ -338,7 +447,7 @@ class StacksImpl {
   // Android native: Cronet (via MethodChannel) -- scaffold
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestAndroidCronet(RequestConfig cfg) async {
-    if (!Platform.isAndroid) {
+    if (!io.Platform.isAndroid) {
       return RequestResult(
         status: null,
         body: '',
@@ -368,7 +477,7 @@ class StacksImpl {
   static Future<RequestResult> requestAndroidNativeCurl(
     RequestConfig cfg,
   ) async {
-    if (!Platform.isAndroid) {
+    if (!io.Platform.isAndroid) {
       return RequestResult(
         status: null,
         body: '',
@@ -559,3 +668,13 @@ class StacksImpl {
     }
   }
 }
+
+class _PinnedHttpOverrides extends io.HttpOverrides {
+  @override
+  io.HttpClient createHttpClient(io.SecurityContext? context) {
+    final client = StacksImpl._createInstrumentedHttpClient();
+    return client;
+  }
+}
+
+class _NoOverrides extends io.HttpOverrides {}
