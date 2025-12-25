@@ -449,6 +449,8 @@ class _LabScreenState extends State<LabScreen> {
         '{"Content-Type":"application/json","X-Api-Key":"abc123"}';
 
     ctrl = LabController(config: RequestConfig(url: widget.initialUrl));
+    // Forward StacksImpl debug logs into UI log view
+    StacksImpl.setLogSink(ctrl.appendLog);
 
     // Prepare a persistent WebViewController for headless usage
     _webViewController = WebViewController()

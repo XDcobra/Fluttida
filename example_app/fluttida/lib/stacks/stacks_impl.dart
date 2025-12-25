@@ -20,6 +20,7 @@ class StacksImpl {
   static final io.HttpOverrides _noOverrides = _NoOverrides();
   // Current pinning configuration used by dart:io path
   static PinningConfig _currentPinningConfig = const PinningConfig.disabled();
+  static void Function(String)? _logSink;
 
   // Global pinning propagation. Safe if native side doesn't implement.
   static Future<void> setGlobalPinningConfig(PinningConfig cfg) async {
@@ -42,6 +43,10 @@ class StacksImpl {
     } catch (_) {
       // Ignore: keeps UI responsive even if native handler not present
     }
+  }
+
+  static void setLogSink(void Function(String) sink) {
+    _logSink = sink;
   }
 
   static Future<bool> isCronetPinningSupported() async {
@@ -92,28 +97,26 @@ class StacksImpl {
               final cfg = _currentPinningConfig;
               if (!cfg.enabled) return true;
 
-              try {
-                print(
-                  '[PIN DEBUG] badCertificateCallback invoked for host=$host port=$port mode=${cfg.mode.name} spkiPins=${cfg.spkiPins.length} certPins=${cfg.certSha256Pins.length}',
-                );
-              } catch (_) {}
+              _log(
+                '[PIN DEBUG] badCertificateCallback invoked for host=$host port=$port mode=${cfg.mode.name} spkiPins=${cfg.spkiPins.length} certPins=${cfg.certSha256Pins.length}',
+              );
               // compute either cert hash or spki hash according to mode
               try {
                 if (cfg.mode == PinningMode.certHash) {
                   final h = _computeCertSha256Base64(cert);
-                  print('[PIN DEBUG] computed cert sha256 (base64)=$h');
+                  _log('[PIN DEBUG] computed cert sha256 (base64)=$h');
                   if (cfg.certSha256Pins.contains(h)) return true;
-                  print('[PIN DEBUG] cert hash mismatch');
+                  _log('[PIN DEBUG] cert hash mismatch');
                   return false;
                 } else {
                   final h = _computeSpkiSha256Base64(cert);
-                  print('[PIN DEBUG] computed spki sha256 (base64)=$h');
+                  _log('[PIN DEBUG] computed spki sha256 (base64)=$h');
                   if (cfg.spkiPins.contains(h)) return true;
-                  print('[PIN DEBUG] spki hash mismatch');
+                  _log('[PIN DEBUG] spki hash mismatch');
                   return false;
                 }
               } catch (e, st) {
-                print('[PIN DEBUG] pin check failed: $e\n$st');
+                _log('[PIN DEBUG] pin check failed: $e\n$st');
                 // conservative: reject when pin check fails unexpectedly
                 return false;
               }
@@ -130,6 +133,15 @@ class StacksImpl {
       () => io.HttpClient(context: ctx),
       _noOverrides,
     );
+  }
+
+  static void _log(String msg) {
+    // Console log for dev
+    // ignore: avoid_print
+    print(msg);
+    try {
+      _logSink?.call(msg);
+    } catch (_) {}
   }
 
   // Compute base64-encoded SHA-256 of full certificate DER
@@ -182,7 +194,7 @@ class StacksImpl {
     final sw = Stopwatch()..start();
     try {
       final client = _createInstrumentedHttpClient();
-      print('[PIN DEBUG] requestDartIoRaw: instrumented HttpClient created');
+      _log('[PIN DEBUG] requestDartIoRaw: instrumented HttpClient created');
       client.connectionTimeout = cfg.timeout;
 
       final uri = Uri.parse(cfg.url);
@@ -279,7 +291,7 @@ class StacksImpl {
     final sw = Stopwatch()..start();
     try {
       final ioHttpClient = _createInstrumentedHttpClient();
-      print(
+      _log(
         '[PIN DEBUG] requestHttpViaExplicitIoClient: instrumented HttpClient created',
       );
       ioHttpClient.connectionTimeout = cfg.timeout;
