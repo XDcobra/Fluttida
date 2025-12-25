@@ -194,7 +194,6 @@ class StacksImpl {
     final sw = Stopwatch()..start();
     try {
       final client = _createInstrumentedHttpClient();
-      _log('[PIN DEBUG] requestDartIoRaw: instrumented HttpClient created');
       client.connectionTimeout = cfg.timeout;
 
       final uri = Uri.parse(cfg.url);
