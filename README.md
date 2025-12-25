@@ -1,7 +1,7 @@
 # Fluttida – Intercepting Flutter App Traffic with Frida
 This repository provides tools and Frida scripts to analyze, intercept and forward network traffic from Flutter applications via Frida. Because Flutter often bypasses system proxy settings and uses custom networking stacks, standard proxy interception fails. The scripts here help identify which client (e.g. `dart:io`, `NSURLSession`, `NSURLConnection`, or `WKWebView`) is in use and redirect traffic through a proxy for effective reverse engineering.
 
-<div align="center">
+<div align="center" style="width:80%;margin:0 auto;">
   <img src="docs/fluttida-banner.png" alt="Fluttida - Proxy Interception for Flutter Apps via Frida" width=60%" />
 
   <p>
@@ -111,10 +111,11 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 
 
 ## Example App: Fluttida ([example_app/fluttida](example_app/fluttida))
-<div style="display:flex;gap:8px;align-items:flex-start;">
-  <img src="example_app/fluttida/docs/images/main_screen.png" alt="Fluttida Main screen" style="width:33%;height:auto;border-radius:8px;" />
-  <img src="example_app/fluttida/docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:33%;height:auto;border-radius:8px;" />
-  <img src="example_app/fluttida/docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:33%;height:auto;border-radius:8px;" />
+<div style="display:flex;gap:8px;align-items:flex-start;width:90%;margin:0 auto;">
+  <img src="example_app/fluttida/docs/images/main_screen.png" alt="Fluttida Main screen" style="width:25%;height:auto;border-radius:8px;" />
+  <img src="example_app/fluttida/docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:25%;height:auto;border-radius:8px;" />
+  <img src="example_app/fluttida/docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:25%;height:auto;border-radius:8px;" />
+  <img src="example_app/fluttida/docs/images/pinning_screen.png" alt="Fluttida SSL Pinning Screen" style="width:25%;height:auto;border-radius:8px;" />
 </div>
 
 This repository includes a small Flutter example app located at [example_app/fluttida](example_app/fluttida). The app is a network-stack lab and playground designed to help you test, compare, and instrument different HTTP clients and platform stacks while using Frida.
