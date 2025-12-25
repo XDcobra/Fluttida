@@ -36,6 +36,61 @@ import java.util.Date
 class MainActivity : FlutterActivity() {
 	private val CHANNEL = "fluttida/network"
 
+	companion object {
+		@Volatile
+		private var instance: MainActivity? = null
+
+		// Called from native C++ (JNI) to surface logs into Flutter UI
+		@JvmStatic
+		fun sendLogToFlutter(msg: String) {
+			instance?.sendLogToFlutterInstance(msg) ?: android.util.Log.d("FluttidaNativeCurl", msg)
+		}
+
+		@JvmStatic
+		fun verifyHostPins(host: String, port: Int, spkiCsv: String?, certCsv: String?): Boolean {
+			try {
+				val urlStr = "https://$host:${if (port > 0) port else 443}/"
+				val url = java.net.URL(urlStr)
+				val conn = (url.openConnection() as javax.net.ssl.HttpsURLConnection).apply {
+					connectTimeout = 5000
+					readTimeout = 5000
+					instanceFollowRedirects = false
+				}
+				try {
+					conn.connect()
+					val certs = conn.serverCertificates
+					if (certs != null && certs.isNotEmpty()) {
+						val x509 = certs[0] as java.security.cert.X509Certificate
+						// compute hashes
+						val pub = x509.publicKey.encoded
+						val md = MessageDigest.getInstance("SHA-256")
+						val spkiHash = android.util.Base64.encodeToString(md.digest(pub), android.util.Base64.NO_WRAP)
+						val der = x509.encoded
+						val certHash = android.util.Base64.encodeToString(md.digest(der), android.util.Base64.NO_WRAP)
+						// check provided CSV lists
+						if (!spkiCsv.isNullOrEmpty()) {
+							for (p in spkiCsv.split(',')) {
+								val np = p.trim().removePrefix("sha256/")
+								if (np == spkiHash) return true
+							}
+						}
+						if (!certCsv.isNullOrEmpty()) {
+							for (p in certCsv.split(',')) {
+								val np = p.trim().removePrefix("sha256/")
+								if (np == certHash) return true
+							}
+						}
+					}
+				} finally {
+					try { conn.disconnect() } catch (_: Throwable) { }
+				}
+			} catch (_: Throwable) {
+				return false
+			}
+			return false
+		}
+	}
+
 	// Global pinning state
 	@Volatile
 	private var globalPinningEnabled: Boolean = false
@@ -55,6 +110,16 @@ class MainActivity : FlutterActivity() {
 	private var techNativeCurl: String? = null
 	@Volatile
 	private var techCronet: String? = null
+
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+		instance = this
+	}
+
+	override fun onDestroy() {
+		instance = null
+		super.onDestroy()
+	}
 
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
@@ -179,83 +244,36 @@ class MainActivity : FlutterActivity() {
 			if (!globalPinningEnabled) return true
 			if (globalPinningMode == "publicKey") {
 				val spki = calcSpkiSha256Base64(cert)
-				sendLogToFlutter("[PIN DEBUG] Server SPKI SHA256: $spki")
+				sendLogToFlutterInstance("[PIN DEBUG] Server SPKI SHA256: $spki")
 				for (p in globalSpkiPins) {
 					val normalized = normalizePin(p)
-					sendLogToFlutter("[PIN DEBUG] Comparing against configured pin: $normalized")
+					sendLogToFlutterInstance("[PIN DEBUG] Comparing against configured pin: $normalized")
 					if (normalized == spki) {
-						sendLogToFlutter("[PIN DEBUG] ✓ Pin matched")
+						sendLogToFlutterInstance("[PIN DEBUG] ✓ Pin matched")
 						return true
 					}
 				}
-				sendLogToFlutter("[PIN DEBUG] ✗ No matching SPKI pin found")
+				sendLogToFlutterInstance("[PIN DEBUG] ✗ No matching SPKI pin found")
 				false
 			} else {
 				val ch = calcCertSha256Base64(cert)
-				sendLogToFlutter("[PIN DEBUG] Server Cert SHA256: $ch")
+				sendLogToFlutterInstance("[PIN DEBUG] Server Cert SHA256: $ch")
 				for (p in globalCertPins) {
 					val normalized = normalizePin(p)
-					sendLogToFlutter("[PIN DEBUG] Comparing against configured pin: $normalized")
+					sendLogToFlutterInstance("[PIN DEBUG] Comparing against configured pin: $normalized")
 					if (normalized == ch) {
-						sendLogToFlutter("[PIN DEBUG] ✓ Pin matched")
+						sendLogToFlutterInstance("[PIN DEBUG] ✓ Pin matched")
 						return true
 					}
 				}
-				sendLogToFlutter("[PIN DEBUG] ✗ No matching cert hash pin found")
+				sendLogToFlutterInstance("[PIN DEBUG] ✗ No matching cert hash pin found")
 				false
 			}
 		} catch (e: Throwable) {
-			sendLogToFlutter("[PIN DEBUG] Pin verification error: ${e.message}")
+			sendLogToFlutterInstance("[PIN DEBUG] Pin verification error: ${e.message}")
 			false
 		}
 	}
-
-	companion object {
-		@JvmStatic
-		fun verifyHostPins(host: String, port: Int, spkiCsv: String?, certCsv: String?): Boolean {
-			try {
-				val urlStr = "https://$host:${if (port > 0) port else 443}/"
-				val url = java.net.URL(urlStr)
-				val conn = (url.openConnection() as javax.net.ssl.HttpsURLConnection).apply {
-					connectTimeout = 5000
-					readTimeout = 5000
-					instanceFollowRedirects = false
-				}
-				try {
-					conn.connect()
-					val certs = conn.serverCertificates
-					if (certs != null && certs.isNotEmpty()) {
-						val x509 = certs[0] as java.security.cert.X509Certificate
-						// compute hashes
-						val pub = x509.publicKey.encoded
-						val md = MessageDigest.getInstance("SHA-256")
-						val spkiHash = android.util.Base64.encodeToString(md.digest(pub), android.util.Base64.NO_WRAP)
-						val der = x509.encoded
-						val certHash = android.util.Base64.encodeToString(md.digest(der), android.util.Base64.NO_WRAP)
-						// check provided CSV lists
-						if (!spkiCsv.isNullOrEmpty()) {
-							for (p in spkiCsv.split(',')) {
-								val np = p.trim().removePrefix("sha256/")
-								if (np == spkiHash) return true
-							}
-						}
-						if (!certCsv.isNullOrEmpty()) {
-							for (p in certCsv.split(',')) {
-								val np = p.trim().removePrefix("sha256/")
-								if (np == certHash) return true
-							}
-						}
-					}
-				} finally {
-					try { conn.disconnect() } catch (_: Throwable) { }
-				}
-			} catch (_: Throwable) {
-				return false
-			}
-			return false
-		}
-	}
-
 	// Copy assets/cacert.pem to a readable path and return its absolute path, or null if asset missing
 	private fun ensureCaBundle(): String? {
 		return try {
@@ -280,10 +298,10 @@ class MainActivity : FlutterActivity() {
 
 	private fun cronetLog(msg: String) {
 		android.util.Log.d("FluttidaCronet", msg)
-		sendLogToFlutter("[CRONET] $msg")
+		sendLogToFlutterInstance("[CRONET] $msg")
 	}
 
-	private fun sendLogToFlutter(msg: String) {
+	private fun sendLogToFlutterInstance(msg: String) {
 		try {
 			Handler(Looper.getMainLooper()).post {
 				MethodChannel(
@@ -481,7 +499,11 @@ class MainActivity : FlutterActivity() {
 							if (chain.isEmpty()) throw java.security.cert.CertificateException("Empty certificate chain")
 							// Check first cert (server cert) against pins
 							val cert = chain[0]
-						sendLogToFlutter("[HttpURLConnection/TrustManager] Verifying certificate...")
+							sendLogToFlutterInstance("[HttpURLConnection/TrustManager] Verifying certificate...")
+							val pinOk = verifyCertPins(cert)
+							if (!pinOk) throw java.security.cert.CertificateException("SSL pinning mismatch (TrustManager)")
+						}
+
 						override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
 					}
 					
@@ -513,7 +535,7 @@ class MainActivity : FlutterActivity() {
 					val certs = conn.serverCertificates
 					if (certs != null && certs.isNotEmpty()) {
 						val x509 = certs[0] as java.security.cert.X509Certificate
-						sendLogToFlutter("[HttpURLConnection/postConnect] Verifying certificate...")
+						sendLogToFlutterInstance("[HttpURLConnection/postConnect] Verifying certificate...")
 						val ok = verifyCertPins(x509)
 						if (!ok) throw Exception("SSL pinning mismatch (postConnect)")
 					}
@@ -594,8 +616,10 @@ class MainActivity : FlutterActivity() {
 					try {
 						val peerCerts = resp.handshake?.peerCertificates
 						if (peerCerts != null && peerCerts.isNotEmpty()) {
-							val x509 = peerCerts[0] as java.security.cert.X509Certificate						val techLabel = if (effTech == "postConnect") "postConnect" else "certHash fallback"
-						sendLogToFlutter("[OkHttp/$techLabel] Verifying certificate...")							val ok = verifyCertPins(x509)
+							val x509 = peerCerts[0] as java.security.cert.X509Certificate
+							val techLabel = if (effTech == "postConnect") "postConnect" else "certHash fallback"
+							sendLogToFlutterInstance("[OkHttp/$techLabel] Verifying certificate...")
+							val ok = verifyCertPins(x509)
 							if (!ok) throw Exception("SSL pinning mismatch")
 						}
 					} catch (e: Exception) {

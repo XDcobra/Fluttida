@@ -24,9 +24,34 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+// Global JNI references for logging to Flutter UI
+static JavaVM* g_jvm = nullptr;
+static jclass g_mainActivityClass = nullptr;
+static jmethodID g_sendLogMethod = nullptr;
+
 // Globals for CURLOPT_SSL_CTX_FUNCTION verify callback
 static std::string g_spkiPinsCsv_global;
 static std::string g_certPinsCsv_global;
+
+// Helper to send log messages to Flutter UI
+static void sendLogToFlutter(const char* msg) {
+    if (!g_jvm || !g_sendLogMethod) return;
+    JNIEnv* env = nullptr;
+    bool detach = false;
+    int status = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+    if (status == JNI_EDETACHED) {
+        if (g_jvm->AttachCurrentThread(&env, nullptr) != 0) return;
+        detach = true;
+    }
+    if (env && g_sendLogMethod) {
+        jstring jmsg = env->NewStringUTF(msg);
+        if (jmsg) {
+            env->CallStaticVoidMethod(g_mainActivityClass, g_sendLogMethod, jmsg);
+            env->DeleteLocalRef(jmsg);
+        }
+    }
+    if (detach) g_jvm->DetachCurrentThread();
+}
 
 // Minimal base64 encoder for 32-byte input
 static std::string base64_encode_32(const unsigned char in[32]) {
@@ -121,6 +146,8 @@ static int openssl_verify_callback(int preverify_ok, void* x509_ctx) {
         fp_SHA256(certbuf, certlen, digest);
         std::string certB64 = base64_encode_32(digest);
         LOGI("openssl_verify_callback: computed cert hash: %s", certB64.c_str());
+        std::string logMsg = "[NativeCurl/SSL_CTX] Server Cert SHA256: " + certB64;
+        sendLogToFlutter(logMsg.c_str());
         // compare to CSV
         if (!g_certPinsCsv_global.empty()) {
             LOGI("openssl_verify_callback: checking against cert pins...");
@@ -133,13 +160,19 @@ static int openssl_verify_callback(int preverify_ok, void* x509_ctx) {
                 while (!np.empty() && isspace((unsigned char)np.front())) np.erase(np.begin());
                 while (!np.empty() && isspace((unsigned char)np.back())) np.pop_back();
                 LOGI("openssl_verify_callback: comparing cert hash '%s' vs pin '%s'", certB64.c_str(), np.c_str());
+                std::string cmpMsg = "[PIN DEBUG] Comparing against configured pin: " + np;
+                sendLogToFlutter(cmpMsg.c_str());
                 if (np == certB64) { 
                     LOGI("openssl_verify_callback: CERT HASH MATCH!");
+                    sendLogToFlutter("[PIN DEBUG] ✓ Pin matched");
                     ok = true; 
                     break; 
                 }
             }
-            if (!ok) LOGI("openssl_verify_callback: no cert hash match found");
+            if (!ok) {
+                LOGI("openssl_verify_callback: no cert hash match found");
+                sendLogToFlutter("[PIN DEBUG] ✗ No matching cert hash pin found");
+            }
         }
         free(certbuf);
     }
@@ -155,6 +188,8 @@ static int openssl_verify_callback(int preverify_ok, void* x509_ctx) {
                 fp_SHA256(pkbuf, pklen, pdigest);
                 std::string pkB64 = base64_encode_32(pdigest);
                 LOGI("openssl_verify_callback: computed SPKI hash: %s", pkB64.c_str());
+                std::string logMsg = "[NativeCurl/SSL_CTX] Server SPKI SHA256: " + pkB64;
+                sendLogToFlutter(logMsg.c_str());
                 std::istringstream iss2(g_spkiPinsCsv_global);
                 std::string tok2;
                 while (std::getline(iss2, tok2, ',')) {
@@ -163,13 +198,19 @@ static int openssl_verify_callback(int preverify_ok, void* x509_ctx) {
                     while (!np.empty() && isspace((unsigned char)np.front())) np.erase(np.begin());
                     while (!np.empty() && isspace((unsigned char)np.back())) np.pop_back();
                     LOGI("openssl_verify_callback: comparing SPKI hash '%s' vs pin '%s'", pkB64.c_str(), np.c_str());
+                    std::string cmpMsg = "[PIN DEBUG] Comparing against configured pin: " + np;
+                    sendLogToFlutter(cmpMsg.c_str());
                     if (np == pkB64) { 
                         LOGI("openssl_verify_callback: SPKI HASH MATCH!");
+                        sendLogToFlutter("[PIN DEBUG] ✓ Pin matched");
                         ok = true; 
                         break; 
                     }
                 }
-                if (!ok) LOGI("openssl_verify_callback: no SPKI hash match found");
+                if (!ok) {
+                    LOGI("openssl_verify_callback: no SPKI hash match found");
+                    sendLogToFlutter("[PIN DEBUG] ✗ No matching SPKI pin found");
+                }
                 free(pkbuf);
             }
             fp_EVP_PKEY_free(pkey);
@@ -781,4 +822,30 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
 
     std::string json = out.str();
     return env->NewStringUTF(json.c_str());
+}
+
+// JNI_OnLoad to initialize global JVM reference and cache MainActivity methods for logging
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
+    g_jvm = vm;
+    JNIEnv* env = nullptr;
+    if (vm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
+        return JNI_ERR;
+    }
+    
+    // Cache MainActivity class and sendLogToFlutter static method
+    jclass localClass = env->FindClass("com/example/fluttida/MainActivity");
+    if (localClass) {
+        g_mainActivityClass = (jclass)env->NewGlobalRef(localClass);
+        env->DeleteLocalRef(localClass);
+        
+        // Look for static method: public static void sendLogToFlutter(String msg)
+        g_sendLogMethod = env->GetStaticMethodID(g_mainActivityClass, "sendLogToFlutter", "(Ljava/lang/String;)V");
+        if (!g_sendLogMethod) {
+            LOGE("JNI_OnLoad: failed to find sendLogToFlutter method");
+        }
+    } else {
+        LOGE("JNI_OnLoad: failed to find MainActivity class");
+    }
+    
+    return JNI_VERSION_1_6;
 }
