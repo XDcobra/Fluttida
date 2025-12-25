@@ -1073,7 +1073,6 @@ class _LabScreenState extends State<LabScreen> {
       },
     );
   }
-
 }
 
 class _StatusChip extends StatelessWidget {
