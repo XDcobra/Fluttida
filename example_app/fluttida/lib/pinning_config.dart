@@ -6,6 +6,7 @@ enum PinningMode { publicKey, certHash }
 enum PinningTechnique {
   none, // disable enforcement for the stack
   postConnect, // post-connect verification in client (HttpURLConnection/OkHttp)
+  trustManager, // Custom TrustManager (HttpURLConnection)
   okhttpPinner, // OkHttp CertificatePinner (SPKI only)
   curlPreflight, // Native curl: preflight OpenSSL probe only
   curlSslCtx, // Native curl: SSL_CTX verify callback only
@@ -42,6 +43,8 @@ class StackPinConfig {
         return PinningTechnique.none;
       case 'postConnect':
         return PinningTechnique.postConnect;
+      case 'trustManager':
+        return PinningTechnique.trustManager;
       case 'okhttpPinner':
         return PinningTechnique.okhttpPinner;
       case 'curlPreflight':

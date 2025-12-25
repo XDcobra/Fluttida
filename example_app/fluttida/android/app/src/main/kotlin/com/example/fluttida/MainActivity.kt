@@ -394,7 +394,32 @@ class MainActivity : FlutterActivity() {
 				}
 			}
 
-			// If pinning enabled, and HTTPS, we'll check the peer cert after connect
+			// Apply TrustManager-based pinning if technique is "trustManager"
+			if (globalPinningEnabled && techHttpUrlConnection == "trustManager" && conn is javax.net.ssl.HttpsURLConnection) {
+				try {
+					val trustManager = object : javax.net.ssl.X509TrustManager {
+						override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+						
+						override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {
+							if (chain.isEmpty()) throw java.security.cert.CertificateException("Empty certificate chain")
+							// Check first cert (server cert) against pins
+							val cert = chain[0]
+							val pinOk = verifyCertPins(cert)
+							if (!pinOk) throw java.security.cert.CertificateException("SSL pinning mismatch (TrustManager)")
+						}
+						
+						override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+					}
+					
+					val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
+					sslContext.init(null, arrayOf(trustManager), null)
+					conn.sslSocketFactory = sslContext.socketFactory
+					conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+				} catch (e: Exception) {
+					val duration = (System.currentTimeMillis() - start).toInt()
+					return mapOf("status" to null, "body" to "", "durationMs" to duration, "error" to "TrustManager setup failed: ${e.message}")
+				}
+			}
 
 			headers?.forEach { (k, v) ->
 				if (k is String && v != null) conn.setRequestProperty(k, v.toString())
@@ -407,14 +432,15 @@ class MainActivity : FlutterActivity() {
 			}
 
 			val status = conn.responseCode
-			// Technique selection: only post-connect supported here
+			
+			// Post-connect verification (only if technique is "postConnect")
 			try {
-				if (globalPinningEnabled && techHttpUrlConnection != null && techHttpUrlConnection != "none" && conn is javax.net.ssl.HttpsURLConnection) {
+				if (globalPinningEnabled && techHttpUrlConnection == "postConnect" && conn is javax.net.ssl.HttpsURLConnection) {
 					val certs = conn.serverCertificates
 					if (certs != null && certs.isNotEmpty()) {
 						val x509 = certs[0] as java.security.cert.X509Certificate
 						val ok = verifyCertPins(x509)
-						if (!ok) throw Exception("SSL pinning mismatch")
+						if (!ok) throw Exception("SSL pinning mismatch (postConnect)")
 					}
 				}
 			} catch (e: Exception) {
@@ -422,6 +448,7 @@ class MainActivity : FlutterActivity() {
 				val duration = (System.currentTimeMillis() - start).toInt()
 				return mapOf("status" to null, "body" to "", "durationMs" to duration, "error" to e.toString())
 			}
+			
 			val input = try { conn.inputStream } catch (e: Exception) { conn.errorStream }
 			val bytes = input?.readBytes() ?: ByteArray(0)
 			val respBody = bytes.toString(Charsets.UTF_8)

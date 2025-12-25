@@ -284,7 +284,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   _buildStackRow(
                     key: 'httpUrlConnection',
                     label: 'HttpURLConnection',
-                    techniques: const [PinningTechnique.postConnect],
+                    techniques: const [
+                      PinningTechnique.postConnect,
+                      PinningTechnique.trustManager,
+                    ],
                   ),
                   _buildStackRow(
                     key: 'okHttp',
@@ -471,6 +474,8 @@ class _SettingsPageState extends State<SettingsPage> {
         return 'None';
       case PinningTechnique.postConnect:
         return 'Post-Connect';
+      case PinningTechnique.trustManager:
+        return 'TrustManager';
       case PinningTechnique.okhttpPinner:
         return 'CertificatePinner';
       case PinningTechnique.curlPreflight:
