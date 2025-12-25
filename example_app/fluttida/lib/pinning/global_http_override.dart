@@ -59,14 +59,34 @@ class GlobalHttpOverride {
               try {
                 if (_config.mode == PinningMode.certHash) {
                   final h = _computeCertSha256Base64(cert);
-                  _log('[PIN DEBUG] computed cert sha256 (base64)=$h');
-                  if (_config.certSha256Pins.contains(h)) return true;
+                  _log('[PIN DEBUG] server cert sha256 (base64)=$h');
+                  if (_config.certSha256Pins.isEmpty) {
+                    _log('[PIN DEBUG] no configured cert pins to compare');
+                  }
+                  for (var i = 0; i < _config.certSha256Pins.length; i++) {
+                    final p = _config.certSha256Pins[i];
+                    _log('[PIN DEBUG] local cert pin[$i]: $p');
+                    if (p == h) {
+                      _log('[PIN DEBUG] pin matched');
+                      return true;
+                    }
+                  }
                   _log('[PIN DEBUG] cert hash mismatch');
                   return false;
                 } else {
                   final h = _computeSpkiSha256Base64(cert);
-                  _log('[PIN DEBUG] computed spki sha256 (base64)=$h');
-                  if (_config.spkiPins.contains(h)) return true;
+                  _log('[PIN DEBUG] server spki sha256 (base64)=$h');
+                  if (_config.spkiPins.isEmpty) {
+                    _log('[PIN DEBUG] no configured SPKI pins to compare');
+                  }
+                  for (var i = 0; i < _config.spkiPins.length; i++) {
+                    final p = _config.spkiPins[i];
+                    _log('[PIN DEBUG] local SPKI pin[$i]: $p');
+                    if (p == h) {
+                      _log('[PIN DEBUG] pin matched');
+                      return true;
+                    }
+                  }
                   _log('[PIN DEBUG] spki hash mismatch');
                   return false;
                 }
