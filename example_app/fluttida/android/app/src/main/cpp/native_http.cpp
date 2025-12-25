@@ -16,7 +16,6 @@
 #include <cstdlib>
 #include <cctype>
 #include <errno.h>
-#include <curl/curl.h>
 
 #define LOG_TAG "FluttidaNativeHttp"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -66,10 +65,15 @@ static bool sslctx_available() {
 }
 
 // The actual verify callback called by OpenSSL during chain verification
-static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
+static int openssl_verify_callback(int preverify_ok, void* x509_ctx) {
+    LOGI("=== openssl_verify_callback called, preverify_ok=%d ===", preverify_ok);
+    
     // Resolve needed symbols from libcrypto at runtime
     void* libcrypto = dlopen("libcrypto.so", RTLD_LAZY);
-    if (!libcrypto) return 0; // fail closed
+    if (!libcrypto) {
+        LOGE("openssl_verify_callback: failed to dlopen libcrypto.so");
+        return 0; // fail closed
+    }
 
     X509_STORE_CTX_get_current_cert_t fp_get_current = (X509_STORE_CTX_get_current_cert_t)dlsym(libcrypto, "X509_STORE_CTX_get_current_cert");
     X509_STORE_CTX_get_error_depth_t fp_get_depth = (X509_STORE_CTX_get_error_depth_t)dlsym(libcrypto, "X509_STORE_CTX_get_error_depth");
@@ -81,19 +85,30 @@ static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
     SHA256_fn_t fp_SHA256 = (SHA256_fn_t)dlsym(libcrypto, "SHA256");
 
     if (!fp_get_current || !fp_get_depth || !fp_i2d_X509 || !fp_X509_get_pubkey || !fp_i2d_PUBKEY || !fp_EVP_PKEY_free || !fp_X509_free || !fp_SHA256) {
+        LOGE("openssl_verify_callback: failed to resolve OpenSSL symbols");
         dlclose(libcrypto);
         return 0;
     }
 
     // Only verify the leaf certificate (depth 0); allow intermediates/roots to pass
     int depth = fp_get_depth(x509_ctx);
+    LOGI("openssl_verify_callback: cert depth=%d", depth);
     if (depth != 0) {
+        LOGI("openssl_verify_callback: accepting intermediate/root cert at depth %d", depth);
         dlclose(libcrypto);
         return 1; // Accept intermediate/root certs
     }
 
+    LOGI("openssl_verify_callback: checking LEAF cert (depth 0)");
+    LOGI("openssl_verify_callback: g_spkiPinsCsv='%s', g_certPinsCsv='%s'", 
+         g_spkiPinsCsv_global.c_str(), g_certPinsCsv_global.c_str());
+
     void* cert = fp_get_current(x509_ctx);
-    if (!cert) { dlclose(libcrypto); return 0; }
+    if (!cert) { 
+        LOGE("openssl_verify_callback: failed to get current cert");
+        dlclose(libcrypto); 
+        return 0; 
+    }
 
     unsigned char* certbuf = nullptr;
     int certlen = fp_i2d_X509(cert, &certbuf);
@@ -102,8 +117,10 @@ static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
         unsigned char digest[32];
         fp_SHA256(certbuf, certlen, digest);
         std::string certB64 = base64_encode_32(digest);
+        LOGI("openssl_verify_callback: computed cert hash: %s", certB64.c_str());
         // compare to CSV
         if (!g_certPinsCsv_global.empty()) {
+            LOGI("openssl_verify_callback: checking against cert pins...");
             std::istringstream iss(g_certPinsCsv_global);
             std::string tok;
             while (std::getline(iss, tok, ',')) {
@@ -112,13 +129,20 @@ static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
                 // trim
                 while (!np.empty() && isspace((unsigned char)np.front())) np.erase(np.begin());
                 while (!np.empty() && isspace((unsigned char)np.back())) np.pop_back();
-                if (np == certB64) { ok = true; break; }
+                LOGI("openssl_verify_callback: comparing cert hash '%s' vs pin '%s'", certB64.c_str(), np.c_str());
+                if (np == certB64) { 
+                    LOGI("openssl_verify_callback: CERT HASH MATCH!");
+                    ok = true; 
+                    break; 
+                }
             }
+            if (!ok) LOGI("openssl_verify_callback: no cert hash match found");
         }
         free(certbuf);
     }
 
     if (!ok && !g_spkiPinsCsv_global.empty()) {
+        LOGI("openssl_verify_callback: checking against SPKI pins...");
         void* pkey = fp_X509_get_pubkey(cert);
         if (pkey) {
             unsigned char* pkbuf = nullptr;
@@ -127,6 +151,7 @@ static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
                 unsigned char pdigest[32];
                 fp_SHA256(pkbuf, pklen, pdigest);
                 std::string pkB64 = base64_encode_32(pdigest);
+                LOGI("openssl_verify_callback: computed SPKI hash: %s", pkB64.c_str());
                 std::istringstream iss2(g_spkiPinsCsv_global);
                 std::string tok2;
                 while (std::getline(iss2, tok2, ',')) {
@@ -134,8 +159,14 @@ static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
                     std::string np = (p==std::string::npos) ? tok2 : tok2.substr(p+7);
                     while (!np.empty() && isspace((unsigned char)np.front())) np.erase(np.begin());
                     while (!np.empty() && isspace((unsigned char)np.back())) np.pop_back();
-                    if (np == pkB64) { ok = true; break; }
+                    LOGI("openssl_verify_callback: comparing SPKI hash '%s' vs pin '%s'", pkB64.c_str(), np.c_str());
+                    if (np == pkB64) { 
+                        LOGI("openssl_verify_callback: SPKI HASH MATCH!");
+                        ok = true; 
+                        break; 
+                    }
                 }
+                if (!ok) LOGI("openssl_verify_callback: no SPKI hash match found");
                 free(pkbuf);
             }
             fp_EVP_PKEY_free(pkey);
@@ -143,24 +174,33 @@ static int openssl_verify_callback(int /*preverify_ok*/, void* x509_ctx) {
     }
 
     dlclose(libcrypto);
+    LOGI("openssl_verify_callback: returning %d (1=success, 0=fail)", ok ? 1 : 0);
     return ok ? 1 : 0; // 1 = verification success
 }
 
 // Callback set via CURLOPT_SSL_CTX_FUNCTION; receives SSL_CTX* as second argument
-static CURLcode ssl_ctx_callback_stub(CURL* /*curl*/, void* ssl_ctx, void* /*userptr*/) {
+static int ssl_ctx_callback_stub(void* /*curl*/, void* ssl_ctx, void* /*userptr*/) {
+    LOGI("=== ssl_ctx_callback_stub called ===");
     // Resolve OpenSSL function SSL_CTX_set_verify from libssl
     void* libssl = dlopen("libssl.so", RTLD_LAZY);
-    if (!libssl) return CURLE_OK; // can't set, allow
+    if (!libssl) {
+        LOGI("ssl_ctx_callback_stub: failed to dlopen libssl.so: %s", dlerror());
+        return 1; // can't set, allow
+    }
     typedef void (*SSL_CTX_set_verify_t)(void*, int, int(*)(int, void*));
     SSL_CTX_set_verify_t fp_SSL_CTX_set_verify = (SSL_CTX_set_verify_t)dlsym(libssl, "SSL_CTX_set_verify");
     if (!fp_SSL_CTX_set_verify) { 
+        LOGI("ssl_ctx_callback_stub: failed to resolve SSL_CTX_set_verify");
         dlclose(libssl); 
-        return CURLE_OK; 
+        return 1; 
     }
     // register our verify callback with SSL_VERIFY_PEER (0x01)
+    // This replaces the default certificate verification with our callback
+    LOGI("ssl_ctx_callback_stub: registering openssl_verify_callback (overriding default verification)");
     fp_SSL_CTX_set_verify(ssl_ctx, 0x01 /*SSL_VERIFY_PEER*/, (int(*)(int, void*))openssl_verify_callback);
     dlclose(libssl);
-    return CURLE_OK;
+    LOGI("ssl_ctx_callback_stub: callback registered successfully");
+    return 0; // success
 }
 
 // write callback for libcurl: append received bytes into std::string
@@ -293,6 +333,27 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         return env->NewStringUTF(err.c_str());
     }
 
+    // Check curl version and TLS backend
+    if (curl_version_info) {
+        struct curl_version_info_data {
+            int age;
+            const char* version;
+            unsigned int version_num;
+            const char* host;
+            int features;
+            const char* ssl_version;
+            long ssl_version_num;
+            const char* libz_version;
+            const char** protocols;
+        };
+        auto* ver_info = (curl_version_info_data*)curl_version_info(3); // CURLVERSION_NOW=3
+        if (ver_info) {
+            LOGI("curl version: %s, SSL backend: %s", 
+                 ver_info->version ? ver_info->version : "unknown",
+                 ver_info->ssl_version ? ver_info->ssl_version : "none");
+        }
+    }
+
     void* curl = curl_easy_init();
     if (!curl) {
         auto ms = (int)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
@@ -368,6 +429,11 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
 
     // Log SSL_CTX availability; if sslctx-only requested but unavailable, return error
     bool sslctxAvail = sslctx_available();
+    if (!curlTechnique.empty()) {
+        LOGI("SSL_CTX_set_verify available: %s (technique=%s)", sslctxAvail ? "true" : "false", curlTechnique.c_str());
+    } else {
+        LOGI("SSL_CTX_set_verify available: %s (technique=default)", sslctxAvail ? "true" : "false");
+    }
     if ((!spkiPinsCsv.empty() || !certPinsCsv.empty()) && (curlTechnique == "sslctx") && !sslctxAvail) {
         // Explicit SSL_CTX technique requested, but not supported on this build
         if (header_list) curl_slist_free_all(header_list);
@@ -386,8 +452,15 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
     if ((!spkiPinsCsv.empty() || !certPinsCsv.empty()) && want_sslctx && sslctxAvail) {
         g_spkiPinsCsv_global = spkiPinsCsv;
         g_certPinsCsv_global = certPinsCsv;
-        curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_callback_stub);
-        curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, nullptr);
+        LOGI("Registering SSL_CTX callback BEFORE other SSL opts (spkiPins='%s', certPins='%s')", 
+             spkiPinsCsv.c_str(), certPinsCsv.c_str());
+        // CURLOPT_SSL_CTX_FUNCTION = 352, CURLOPT_SSL_CTX_DATA = 353
+        int rc_func = curl_easy_setopt(curl, 352, (void*)ssl_ctx_callback_stub);
+        int rc_data = curl_easy_setopt(curl, 353, nullptr);
+        LOGI("SSL_CTX callback setopt results: FUNCTION=%d, DATA=%d (0=CURLE_OK)", rc_func, rc_data);
+        if (rc_func != 0) {
+            LOGE("CURLOPT_SSL_CTX_FUNCTION setopt FAILED with code %d - option not supported!", rc_func);
+        }
     }
 
     // TLS verification (on by default; can be disabled via X-Curl-Insecure:true)
@@ -646,7 +719,9 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
         return env->NewStringUTF(json.c_str());
     }
 
+    LOGI("Performing curl request...");
     int rc = curl_easy_perform(curl);
+    LOGI("curl_easy_perform returned: %d", rc);
     long status = -1;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
 
