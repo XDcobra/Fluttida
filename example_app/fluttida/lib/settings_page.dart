@@ -12,20 +12,12 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   PinningConfig _pinning = const PinningConfig.disabled();
-  bool _cronetPinningSupported = false;
   final TextEditingController _pinInputController = TextEditingController();
-  final _stackKeys = const [
-    'httpUrlConnection',
-    'okHttp',
-    'nativeCurl',
-    'cronet',
-  ];
 
   @override
   void initState() {
     super.initState();
     _loadPinningConfig();
-    _detectCronetSupport();
   }
 
   void _showModeInfo() {
@@ -122,11 +114,6 @@ class _SettingsPageState extends State<SettingsPage> {
     await StacksImpl.setGlobalPinningConfig(cfg);
   }
 
-  Future<void> _detectCronetSupport() async {
-    final supported = await StacksImpl.isCronetPinningSupported();
-    if (mounted) setState(() => _cronetPinningSupported = supported);
-  }
-
   @override
   void dispose() {
     _pinInputController.dispose();
@@ -190,8 +177,9 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                           ],
                           onChanged: (m) {
-                            if (m != null)
+                            if (m != null) {
                               _savePinningConfig(_pinning.copyWith(mode: m));
+                            }
                           },
                         ),
                       ),
@@ -368,8 +356,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       ElevatedButton(
                         onPressed: () async {
                           final imported = await _promptImportJson(context);
-                          if (imported != null)
+                          if (imported != null) {
                             await _savePinningConfig(imported);
+                          }
                         },
                         child: const Text('Import'),
                       ),
@@ -390,7 +379,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: SelectableText(

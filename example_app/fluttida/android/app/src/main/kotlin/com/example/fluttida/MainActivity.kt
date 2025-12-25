@@ -1,3 +1,5 @@
+@file:Suppress("UNCHECKED_CAST", "DEPRECATION")
+
 package com.example.fluttida
 
 import android.os.Bundle
@@ -115,7 +117,10 @@ class MainActivity : FlutterActivity() {
 					Thread {
 						val url = (args?.get("url") as? String) ?: ""
 						val method = (args?.get("method") as? String) ?: "GET"
-						val headers = (args?.get("headers") as? Map<String, String>)?.toMutableMap() ?: mutableMapOf()
+						val headers = mutableMapOf<String, String>()
+						(args?.get("headers") as? Map<*, *>)?.forEach { (k, v) ->
+							if (k is String && v is String) headers[k] = v
+						}
 						val body = args?.get("body") as? String
 						val timeoutMs = (args?.get("timeoutMs") as? Number)?.toInt() ?: 20000
 
@@ -240,26 +245,14 @@ class MainActivity : FlutterActivity() {
 
 	// Copy assets/cacert.pem to a readable path and return its absolute path, or null if asset missing
 	private fun ensureCaBundle(): String? {
-		val assetName = "cacert.pem"
 		return try {
-			// Check if asset exists
-			val am = assets
-			var input: InputStream? = null
-			try {
-				input = am.open(assetName)
-			} catch (_: Throwable) {
-				return null
-			}
-			input?.use {
-				val outFile = File(cacheDir, assetName)
+			assets.open("cacert.pem").use { input ->
+				val outFile = File(cacheDir, "cacert.pem")
 				if (!outFile.exists() || outFile.length() == 0L) {
-					FileOutputStream(outFile).use { fos ->
-						it.copyTo(fos)
-					}
+					FileOutputStream(outFile).use { fos -> input.copyTo(fos) }
 				}
-				return outFile.absolutePath
+				outFile.absolutePath
 			}
-			null
 		} catch (_: Throwable) {
 			null
 		}
@@ -321,6 +314,7 @@ class MainActivity : FlutterActivity() {
 		}
 	}
 
+	@Suppress("DEPRECATION")
 	private fun handleCronetRequest(args: Map<*, *>?, result: MethodChannel.Result) {
 		val start = System.currentTimeMillis()
 		try {
@@ -328,7 +322,6 @@ class MainActivity : FlutterActivity() {
 			val method = (args["method"] as? String) ?: "GET"
 			val headers = args["headers"] as? Map<*, *>
 			val body = args["body"] as? String
-			val timeoutMs = (args["timeoutMs"] as? Number)?.toLong() ?: 20000L
 
 			val baos = ByteArrayOutputStream()
 

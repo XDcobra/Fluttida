@@ -156,14 +156,14 @@ class StacksImpl {
     final der = cert.der;
     final parser = ASN1Parser(der);
     final top = parser.nextObject() as ASN1Sequence; // Certificate
-    final tbs = top.elements![0] as ASN1Sequence; // tbsCertificate
+    final tbs = top.elements[0] as ASN1Sequence; // tbsCertificate
 
     // Find SubjectPublicKeyInfo: scan for a sequence that contains a bit string
     ASN1Sequence? spki;
-    for (final el in tbs.elements!) {
+    for (final el in tbs.elements) {
       if (el is ASN1Sequence) {
         final children = el.elements;
-        if (children != null && children.any((c) => c is ASN1BitString)) {
+        if (children.any((c) => c is ASN1BitString)) {
           spki = el;
           break;
         }
@@ -171,13 +171,13 @@ class StacksImpl {
     }
     if (spki == null) {
       // fallback: try to pick element index 6 (common location)
-      if (tbs.elements!.length > 6 && tbs.elements![6] is ASN1Sequence) {
-        spki = tbs.elements![6] as ASN1Sequence;
+      if (tbs.elements.length > 6 && tbs.elements[6] is ASN1Sequence) {
+        spki = tbs.elements[6] as ASN1Sequence;
       } else {
         throw Exception('SPKI not found in certificate');
       }
     }
-    final spkiBytes = spki.encodedBytes!;
+    final spkiBytes = spki.encodedBytes;
     final digest = crypto.sha256.convert(spkiBytes);
     return base64.encode(digest.bytes);
   }
