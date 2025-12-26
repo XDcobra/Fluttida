@@ -32,29 +32,30 @@ end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      # iOS Version
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
 
-      # CI: kein Codesigning
-      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
-      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
-      config.build_settings['CODE_SIGNING_IDENTITY'] = ''
-
-      # Swift Pods
-      config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES'
-
-      # FIX für fehlende *.bundle (Xcode 15 / iOS 17)
-      config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
-    end
-
-    # Privacy-Bundles fix (Xcode 15 Bug)
-    if target.name.end_with?('_privacy') || target.name.include?('_privacy')
+    # Privacy-Bundles (Xcode 15 Bug)
+    if target.name.include?('_privacy')
       target.build_configurations.each do |config|
         config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
         config.build_settings['SKIP_INSTALL'] = 'YES'
       end
+      next
+    end
+
+    target.build_configurations.each do |config|
+      # iOS target
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+
+      # CI: no Codesigning
+      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+      config.build_settings['CODE_SIGNING_IDENTITY'] = ''
+
+      # dont set global:
+      # config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES'
+
+      # Xcode 15 Workaround
+      config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
     end
   end
 end
-
