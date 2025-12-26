@@ -86,7 +86,7 @@ jobs:
 
       - name: Warm-up iOS build (expected to fail on privacy bundle)
         continue-on-error: true
-        run: flutter build ios --release --no-codesign
+        run: flutter build ios --config-only --no-codesign
 
 
       - name: Show build directory tree (before build)
