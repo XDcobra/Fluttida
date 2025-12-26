@@ -16,7 +16,7 @@ def flutter_root
     matches = line.match(/FLUTTER_ROOT\=(.*)/)
     return matches[1].strip if matches
   end
-  raise "FLUTTER_ROOT not found"
+  raise "FLUTTER_ROOT not found. Run flutter pub get first."
 end
 
 require File.expand_path(
@@ -33,14 +33,16 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     target.build_configurations.each do |config|
+      # 🔑 Mindest-iOS-Version (entscheidend für Flutter + Ads)
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-    end
 
-    # Flutter Pod explizit fixen
-    if target.name == 'Flutter'
-      target.build_configurations.each do |config|
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      end
+      # 🔑 CI: komplett ohne Codesigning
+      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+      config.build_settings['CODE_SIGNING_IDENTITY'] = ''
+
+      # 🔑 Swift Pods (google_mobile_ads etc.)
+      config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES'
     end
   end
 end

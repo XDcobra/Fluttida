@@ -21,7 +21,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
-          flutter-version: '3.38.5'
+          flutter-version: "3.38.5"
           cache: true
 
       - name: Flutter doctor
@@ -30,15 +30,7 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
-      - name: Generate Flutter iOS config
-        run: flutter build ios --config-only --no-codesign
-
-      - name: Install CocoaPods
-        run: |
-          cd ios
-          pod install --repo-update
-
-      # --- Patch Xcode project so LegacyCFURLConnection.m is compiled in Runner target ---
+# --- Patch Xcode project so LegacyCFURLConnection.m is compiled in Runner target ---
       - name: Patch Runner.xcodeproj (add LegacyCFURLConnection)
         run: |
           sudo gem install xcodeproj
@@ -92,14 +84,12 @@ jobs:
         run: |
           grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj
 
-      - name: Build iOS (release, no codesign)
-        run: |
-          export FLUTTER_SKIP_POD_INSTALL=1
-          flutter build ios --release --no-codesign --no-pub
+      # ✅ Flutter übernimmt Pods + Xcode vollständig
+      - name: Build iOS (release, unsigned)
+        run: flutter build ios --release --no-codesign
 
-
-
-      - name: Create unsigned IPA from .app (Payload zip)
+      # ✅ IPA manuell aus .app erzeugen
+      - name: Create unsigned IPA from .app
         run: |
           APP_DIR="build/ios/iphoneos/Runner.app"
           if [ ! -d "$APP_DIR" ]; then
@@ -116,8 +106,6 @@ jobs:
           cd build/ios/ipa
           zip -r Fluttida-unsigned.ipa Payload
           cd -
-
-          ls -la build/ios/ipa
 
       - name: Upload Runner.app
         uses: actions/upload-artifact@v4
