@@ -84,13 +84,30 @@ jobs:
         run: |
           grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj
 
+      - name: Show build directory tree (before build)
+        run: |
+          echo "PWD:"
+          pwd
+          echo "build/ios:"
+          find build/ios -maxdepth 4 -type d | sed 's|^|DIR: |'
+
+
       - name: Create dummy privacy bundles (Xcode 15 workaround)
         run: |
           BASE="build/ios/Release-iphoneos/webview_flutter_wkwebview"
           BUNDLE="$BASE/webview_flutter_wkwebview_privacy.bundle"
+          BIN="$BUNDLE/webview_flutter_wkwebview_privacy"
+
+          echo "Creating dummy privacy bundle at:"
+          echo "$BUNDLE"
 
           mkdir -p "$BUNDLE"
 
+          # Dummy binary (Xcode erwartet diese Datei!)
+          touch "$BIN"
+          chmod +x "$BIN"
+
+          # Minimal Info.plist
           cat > "$BUNDLE/Info.plist" <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -106,6 +123,14 @@ jobs:
           </dict>
           </plist>
           EOF
+
+          echo "Bundle contents:"
+          ls -la "$BUNDLE"
+
+      - name: Verify dummy privacy bundle exists
+        run: |
+          ls -la build/ios/Release-iphoneos/webview_flutter_wkwebview || true
+          ls -la build/ios/Release-iphoneos/webview_flutter_wkwebview/webview_flutter_wkwebview_privacy.bundle || true
 
 
       # Flutter übernimmt Pods + Xcode vollständig
