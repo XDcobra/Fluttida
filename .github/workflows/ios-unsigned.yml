@@ -17,6 +17,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Select Xcode 14.3.1
+        run: |
+          sudo xcode-select -s /Applications/Xcode_14.3.1.app
+          xcodebuild -version
+
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -29,9 +35,6 @@ jobs:
 
       - name: Pub get
         run: flutter pub get
-
-      - name: Flutter clean (fix missing privacy bundle)
-        run: flutter clean
 
 # --- Patch Xcode project so LegacyCFURLConnection.m is compiled in Runner target ---
       - name: Patch Runner.xcodeproj (add LegacyCFURLConnection)
