@@ -17,12 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 14.3.1
-        run: |
-          sudo xcode-select -s /Applications/Xcode_14.3.1.app
-          xcodebuild -version
-
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -90,11 +84,11 @@ jobs:
         run: |
           grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj
 
-      # ✅ Flutter übernimmt Pods + Xcode vollständig
+      # Flutter übernimmt Pods + Xcode vollständig
       - name: Build iOS (release, unsigned)
         run: flutter build ios --release --no-codesign
 
-      # ✅ IPA manuell aus .app erzeugen
+      # IPA manuell aus .app erzeugen
       - name: Create unsigned IPA from .app
         run: |
           APP_DIR="build/ios/iphoneos/Runner.app"
