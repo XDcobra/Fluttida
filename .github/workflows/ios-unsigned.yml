@@ -30,6 +30,9 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
+      - name: Generate Flutter iOS config
+        run: flutter build ios --debug --no-codesign
+
       - name: Install CocoaPods
         run: |
           cd ios
