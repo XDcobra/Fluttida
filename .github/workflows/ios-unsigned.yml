@@ -65,6 +65,12 @@ jobs:
               puts "#{m_path} already in Runner target"
             end
 
+            # --- Swift settings fix ---
+            target.build_configurations.each do |config|
+              config.build_settings['SWIFT_VERSION'] = '5.0'
+              config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES'
+            end
+            
             proj.save
           RUBY
 
