@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-ios-unsigned:
-    runs-on: macos-15
+    runs-on: macos-26
 
     defaults:
       run:
