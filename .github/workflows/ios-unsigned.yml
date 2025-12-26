@@ -97,36 +97,32 @@ jobs:
           find build/ios -maxdepth 4 -type d | sed 's|^|DIR: |'
 
 
-      - name: Inject dummy privacy bundle (after warm-up build)
+      - name: Inject dummy privacy binaries for all plugins (Xcode 15 workaround)
         run: |
-          BASE="build/ios/Release-iphoneos/webview_flutter_wkwebview"
-          BUNDLE="$BASE/webview_flutter_wkwebview_privacy.bundle"
-          BIN="$BUNDLE/webview_flutter_wkwebview_privacy"
+          ROOT="build/ios/Release-iphoneos"
 
-          echo "Injecting dummy privacy bundle into:"
-          echo "$BUNDLE"
+          echo "Scanning for *_privacy.bundle directories..."
+          find "$ROOT" -type d -name "*_privacy.bundle" | while read BUNDLE; do
+            NAME="$(basename "$BUNDLE" | sed 's/_privacy.bundle//')"
+            BIN="$BUNDLE/${NAME}_privacy"
 
-          mkdir -p "$BUNDLE"
-          touch "$BIN"
-          chmod +x "$BIN"
+            echo "→ Fixing privacy bundle:"
+            echo "  Bundle: $BUNDLE"
+            echo "  Binary: $BIN"
 
-          cat > "$BUNDLE/Info.plist" <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>CFBundleIdentifier</key>
-            <string>dummy.webview.flutter.privacy</string>
-            <key>CFBundleName</key>
-            <string>webview_flutter_wkwebview_privacy</string>
-            <key>CFBundlePackageType</key>
-            <string>BNDL</string>
-          </dict>
-          </plist>
-          EOF
+            if [ ! -f "$BIN" ]; then
+              touch "$BIN"
+              chmod +x "$BIN"
+              echo "  ✔ Dummy binary created"
+            else
+              echo "  ✔ Binary already exists"
+            fi
 
-          ls -la "$BUNDLE"
+            echo "  Contents:"
+            ls -la "$BUNDLE"
+            echo "-----------------------------"
+          done
+
 
 
       - name: Verify dummy privacy bundle exists
