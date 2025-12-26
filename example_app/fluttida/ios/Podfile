@@ -33,6 +33,11 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
 
+    # dont change flutter target
+    if target.name == 'Flutter'
+      next
+    end
+
     # Privacy-Bundles (Xcode 15 Bug)
     if target.name.include?('_privacy')
       target.build_configurations.each do |config|
