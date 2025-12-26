@@ -7,27 +7,21 @@ on:
 
 jobs:
   build-ios-unsigned:
-    runs-on: macos-14
+    runs-on: macos-26
 
     defaults:
       run:
         working-directory: example_app/fluttida
 
     steps:
-      # ------------------------------------------------------------
-      # Checkout
-      # ------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ------------------------------------------------------------
-      # Flutter setup
-      # ------------------------------------------------------------
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          channel: "stable"
           flutter-version: "3.38.5"
-          channel: stable
           cache: true
 
       - name: Flutter doctor
@@ -36,65 +30,71 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
-      # ------------------------------------------------------------
-      # 1) Flutter config only (Pods + Xcode project, NO build)
-      # ------------------------------------------------------------
-      - name: Flutter iOS config only
-        run: flutter build ios --config-only --no-codesign
-
-      # ------------------------------------------------------------
-      # 2) Xcode warm-up build (creates Release-iphoneos + privacy bundles)
-      #    IMPORTANT: no Flutter build here
-      # ------------------------------------------------------------
-      - name: Xcode warm-up build (no codesign)
+# --- Patch Xcode project so LegacyCFURLConnection.m is compiled in Runner target ---
+      - name: Patch Runner.xcodeproj (add LegacyCFURLConnection)
         run: |
-          cd ios
-          xcodebuild \
-            -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination generic/platform=iOS \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+          sudo gem install xcodeproj
 
-      # ------------------------------------------------------------
-      # 3) Xcode 15 privacy bundle workaround (generic, all plugins)
-      # ------------------------------------------------------------
-      - name: Inject dummy privacy binaries (Xcode 15 workaround)
+          ruby - <<'RUBY'
+            require 'xcodeproj'
+
+            proj_path = 'ios/Runner.xcodeproj'
+            proj = Xcodeproj::Project.open(proj_path)
+
+            target = proj.targets.find { |t| t.name == 'Runner' }
+            raise "Runner target not found" unless target
+
+            runner_group = proj.main_group.find_subpath('Runner', true)
+
+            h_path = 'LegacyCFURLConnection.h'
+            m_path = 'LegacyCFURLConnection.m'
+
+            proj.files.find { |f| f.path == h_path } || runner_group.new_file(h_path)
+            m_ref = proj.files.find { |f| f.path == m_path } || runner_group.new_file(m_path)
+
+            already = target.source_build_phase.files_references.any? { |fr| fr.path == m_path }
+            unless already
+              target.add_file_references([m_ref])
+              puts "Added #{m_path} to Runner target"
+            else
+              puts "#{m_path} already in Runner target"
+            end
+
+            # --- Swift settings fix ---
+            target.build_configurations.each do |config|
+              config.build_settings['SWIFT_VERSION'] = '5.0'
+              config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES'
+            end
+
+            # --- Ensure Dummy.swift is in Runner target ---
+            dummy = proj.files.find { |f| f.path == 'Dummy.swift' }
+            if dummy
+              unless target.source_build_phase.files_references.include?(dummy)
+                target.add_file_references([dummy])
+                puts "Added Dummy.swift to Runner target"
+              end
+            else
+              puts "Dummy.swift not found in project file references"
+            end
+
+            proj.save
+          RUBY
+
+      - name: Verify pbxproj contains LegacyCFURLConnection
         run: |
-          ROOT="build/ios/Release-iphoneos"
+          grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj
 
-          echo "Scanning for *_privacy.bundle directories..."
-          find "$ROOT" -type d -name "*_privacy.bundle" | while read BUNDLE; do
-            NAME="$(basename "$BUNDLE" | sed 's/_privacy.bundle//')"
-            BIN="$BUNDLE/${NAME}_privacy"
 
-            echo "Fixing: $BIN"
-            if [ ! -f "$BIN" ]; then
-              touch "$BIN"
-              chmod +x "$BIN"
-            fi
-
-            ls -la "$BUNDLE"
-            echo "-----------------------------"
-          done
-
-      # ------------------------------------------------------------
-      # 4) FINAL Flutter build (unsigned, exactly once)
-      # ------------------------------------------------------------
-      - name: Final Flutter build (release, unsigned)
+      # Flutter übernimmt Pods + Xcode vollständig
+      - name: Build iOS (release, unsigned)
         run: flutter build ios --release --no-codesign
 
-      # ------------------------------------------------------------
-      # 5) Create unsigned IPA from Runner.app
-      # ------------------------------------------------------------
-      - name: Create unsigned IPA
+      # IPA manuell aus .app erzeugen
+      - name: Create unsigned IPA from .app
         run: |
           APP_DIR="build/ios/iphoneos/Runner.app"
-
           if [ ! -d "$APP_DIR" ]; then
-            echo "Runner.app not found!"
+            echo "Runner.app not found at $APP_DIR"
             ls -la build/ios/iphoneos || true
             exit 1
           fi
@@ -108,9 +108,6 @@ jobs:
           zip -r Fluttida-unsigned.ipa Payload
           cd -
 
-      # ------------------------------------------------------------
-      # 6) Upload artifacts
-      # ------------------------------------------------------------
       - name: Upload Runner.app
         uses: actions/upload-artifact@v4
         with:
