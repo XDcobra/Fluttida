@@ -31,7 +31,7 @@ jobs:
         run: flutter pub get
 
       - name: Generate Flutter iOS config
-        run: flutter build ios --config-only
+        run: flutter build ios --config-only --no-codesign
 
       - name: Install CocoaPods
         run: |
