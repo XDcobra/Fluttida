@@ -94,11 +94,9 @@ jobs:
 
       - name: Build iOS (release, no codesign)
         run: |
-          flutter build ios \
-            --release \
-            --no-codesign \
-            --no-pub \
-            --no-pod-install
+          export FLUTTER_SKIP_POD_INSTALL=1
+          flutter build ios --release --no-codesign --no-pub
+
 
 
       - name: Create unsigned IPA from .app (Payload zip)
