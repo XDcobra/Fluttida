@@ -47,6 +47,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # ensure commit count is accurate for build_number fallback
 
       - name: Derive version from tag or input
         id: version
@@ -169,6 +171,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download signed artifacts
         uses: actions/download-artifact@v4
