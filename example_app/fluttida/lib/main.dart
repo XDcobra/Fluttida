@@ -37,7 +37,7 @@ Future<void> _initializeGlobalOverrides() async {
 /// Returns a Future that completes when the consent flow is finished.
 Future<void> _initConsentAndPersistFlag() async {
   final completer = Completer<void>();
-  
+
   final params = ConsentRequestParameters(
     tagForUnderAgeOfConsent: false,
     consentDebugSettings: ConsentDebugSettings(
@@ -55,7 +55,8 @@ Future<void> _initConsentAndPersistFlag() async {
       debugPrint('Consent status after update: $status');
 
       if (status == ConsentStatus.required) {
-        final available = await ConsentInformation.instance.isConsentFormAvailable();
+        final available = await ConsentInformation.instance
+            .isConsentFormAvailable();
         if (available) {
           ConsentForm.loadConsentForm(
             (ConsentForm form) {
@@ -85,13 +86,11 @@ Future<void> _initConsentAndPersistFlag() async {
       completer.complete(); // Complete even on error
     },
   );
-  
+
   // Wait for consent flow to complete
   await completer.future;
   debugPrint('Consent flow completed');
 }
-
-
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
