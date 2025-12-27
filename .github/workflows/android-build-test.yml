@@ -1,0 +1,75 @@
+# This action will be run on every push to main and can also be triggered manually
+# 1. Derives version and build number from pubspec.yaml
+# 2. Sets up Flutter environment
+# 3. Builds unsigned Android APK (.apk)
+# 4. Uploads unsigned APK as workflow artifact
+
+name: Android unsigned build (.apk)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-android-unsigned:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: example_app/fluttida
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive version (main branch)
+        id: version
+        run: |
+          set -euo pipefail
+          # Read version from pubspec (e.g., 1.2.3 or 1.2.3+45)
+          VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
+          VERSION_NAME="${VERSION_LINE%%+*}"
+          BUILD_NUMBER_PART="${VERSION_LINE#*+}"
+          if [ "$BUILD_NUMBER_PART" = "$VERSION_LINE" ]; then
+            # No +buildNumber in pubspec; fall back to commit count
+            BUILD_NUMBER=$(git rev-list --count HEAD)
+          else
+            BUILD_NUMBER="$BUILD_NUMBER_PART"
+          fi
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Resolved version_name=$VERSION_NAME build_number=$BUILD_NUMBER"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: '3.38.5'
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Build Android APK (release, unsigned)
+        run: |
+          flutter build apk --release \
+            --build-name="${{ steps.version.outputs.version_name }}" \
+            --build-number="${{ steps.version.outputs.build_number }}" \
+            --dart-define=APP_VERSION="${{ steps.version.outputs.version_name }}" \
+            --dart-define=APP_BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
+
+      - name: Gather APK artifacts
+        run: |
+          mkdir -p build/artifacts/android
+          cp build/app/outputs/flutter-apk/*.apk build/artifacts/android/ || true
+          ls -la build/artifacts/android || true
+
+      - name: Upload unsigned APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fluttida-unsigned-apk-${{ steps.version.outputs.version_name }}+${{ steps.version.outputs.build_number }}
+          path: example_app/fluttida/build/artifacts/android/*.apk
