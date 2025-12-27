@@ -32,44 +32,19 @@ end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-
     target.build_configurations.each do |config|
-      # iOS target
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-
-      # CI: no Codesigning
       config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
       config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
       config.build_settings['CODE_SIGNING_IDENTITY'] = ''
-
-      # ❗ Flutter niemals anfassen
-      next if target.name == 'Flutter'
-
-      # Swift Pods, die import Flutter nutzen
-      if %w[
-        webview_flutter
-        shared_preferences
-        google_mobile_ads
-        cupertino_http
-      ].any? { |p| target.name.start_with?(p) }
-        config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES'
-      end
-
-      # Xcode 15 CI workaround (nur Pods)
-      config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
     end
 
-    # Privacy bundle targets
-    if target.name.include?('_privacy')
+    # ✅ Privacy bundle targets NUR hier anfassen
+    if target.name.end_with?('_privacy')
       target.build_configurations.each do |config|
-        config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
         config.build_settings['SKIP_INSTALL'] = 'YES'
+        config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
       end
     end
-  end
-
-  # Debug-Ausgabe
-  installer.pods_project.targets.each do |t|
-    puts "TARGET FOUND: #{t.name}"
   end
 end
