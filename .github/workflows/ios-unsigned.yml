@@ -88,6 +88,54 @@ jobs:
       # Flutter übernimmt Pods + Xcode vollständig
       - name: Build iOS (release, unsigned)
         run: flutter build ios --release --no-codesign
+        continue-on-error: true
+
+      - name: DEBUG – Pods & Flutter Pod
+        run: |
+          echo "=== Pods root ==="
+          ls -la ios/Pods || true
+
+          echo ""
+          echo "=== Flutter Pod directory ==="
+          ls -la ios/Pods/Flutter || echo "❌ Pods/Flutter missing"
+
+          echo ""
+          echo "=== Flutter.framework search ==="
+          find ios/Pods -name "Flutter.framework" -maxdepth 5 || echo "❌ Flutter.framework NOT found"
+
+
+      - name: DEBUG – Flutter build settings (module)
+        run: |
+          cd ios
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Flutter \
+            -showBuildSettings | grep -E "DEFINES_MODULE|PRODUCT_TYPE|MODULE"
+
+      - name: DEBUG – Swift & Framework search paths
+        run: |
+          cd ios
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -showBuildSettings | grep -E "SWIFT_INCLUDE_PATHS|FRAMEWORK_SEARCH_PATHS"
+
+
+      - name: DEBUG – Podspec Flutter dependencies
+        run: |
+          echo "=== webview_flutter_wkwebview podspec ==="
+          sed -n '1,200p' ios/Pods/Local\ Podspecs/webview_flutter_wkwebview.podspec.json || true
+
+          echo ""
+          echo "=== shared_preferences_foundation podspec ==="
+          sed -n '1,200p' ios/Pods/Local\ Podspecs/shared_preferences_foundation.podspec.json || true
+
+      - name: DEBUG – Generated.xcconfig
+        run: |
+          echo "=== ios/Flutter/Generated.xcconfig ==="
+          cat ios/Flutter/Generated.xcconfig || echo "❌ Generated.xcconfig missing"
+
 
       # IPA manuell aus .app erzeugen
       - name: Create unsigned IPA from .app

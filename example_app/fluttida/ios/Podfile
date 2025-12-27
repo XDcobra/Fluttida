@@ -62,5 +62,10 @@ post_install do |installer|
       # Xcode 15 Workaround
       config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
     end
+
+    proj.targets.each do |t|
+      puts "TARGET FOUND: #{t.name}"
+    end
+
   end
 end
