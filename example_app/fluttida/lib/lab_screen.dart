@@ -504,11 +504,17 @@ class _LabScreenState extends State<LabScreen> {
   }
 
   void _loadBannerAd() async {
-    // Determine if we can show personalized ads based on consent status
-    final canRequestAds = await ConsentInformation.instance.canRequestAds();
+    // Check if we can request ads (GDPR requirement)
+    final canRequest = await ConsentInformation.instance.canRequestAds();
+    if (!canRequest) {
+      debugPrint('Cannot request ads - consent not given or not available');
+      return;
+    }
 
-    // Create AdRequest - will be non-personalized if consent not given
-    final adRequest = AdRequest(nonPersonalizedAds: !canRequestAds);
+    debugPrint('canRequestAds is true - loading banner ad');
+
+    // GMA SDK handles personalization internally based on consent status
+    final adRequest = AdRequest();
 
     _bannerAd = BannerAd(
       adUnitId: Platform.isAndroid

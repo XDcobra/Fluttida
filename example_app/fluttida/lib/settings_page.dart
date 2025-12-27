@@ -104,8 +104,6 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          // GDPR Consent Card (only shown in release mode for store app)
-          if (!kIsLabApp) _buildConsentCard(),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -389,6 +387,9 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          // GDPR Consent Card (only shown in release mode for store app)
+          if (!kIsLabApp) _buildConsentCard(),
         ],
       ),
     );
@@ -661,9 +662,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     statusColor = Colors.green;
                     break;
                   case ConsentStatus.unknown:
-                  default:
                     statusText = 'Unknown';
                     statusColor = Colors.grey;
+                    break;
                 }
 
                 return Column(
@@ -678,7 +679,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.2),
+                            color: statusColor.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
                             border: Border.all(color: statusColor),
                           ),
@@ -694,21 +695,37 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    FutureBuilder<bool>(
-                      future: ConsentInformation.instance.canRequestAds(),
-                      builder: (context, adsSnapshot) {
-                        final canRequestAds = adsSnapshot.data ?? false;
-                        return Text(
-                          canRequestAds
-                              ? '✓ Personalized ads enabled'
-                              : 'ⓘ Non-personalized ads only',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: canRequestAds ? Colors.green : Colors.orange,
+                    if (status == ConsentStatus.notRequired)
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: Colors.blue.withValues(alpha: 0.3),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: Colors.blue,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Not in a regulated region (EU/EEA). '
+                                'No consent form needed.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     const SizedBox(height: 12),
                     const Text(
                       'You can review or change your privacy settings at any time.',
@@ -740,14 +757,30 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showConsentForm(BuildContext context) async {
+    final available = await ConsentInformation.instance
+        .isConsentFormAvailable();
+    if (!available) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No consent form available (region not regulated or already resolved).',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     ConsentForm.loadConsentForm(
       (ConsentForm consentForm) {
-        consentForm.show((FormError? formError) {
+        consentForm.show((FormError? formError) async {
           if (formError != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Error: ${formError.message}')),
             );
-          } else {
+          }
+          if (context.mounted) {
             setState(() {}); // Refresh to show updated status
           }
         });
@@ -784,6 +817,34 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (confirmed == true) {
       await ConsentInformation.instance.reset();
+
+      // Re-run consent update and show form again if required
+      try {
+        final params = ConsentRequestParameters(tagForUnderAgeOfConsent: false);
+        ConsentInformation.instance.requestConsentInfoUpdate(
+          params,
+          () async {
+            final status = await ConsentInformation.instance.getConsentStatus();
+            if (status == ConsentStatus.required &&
+                await ConsentInformation.instance.isConsentFormAvailable()) {
+              ConsentForm.loadConsentForm(
+                (ConsentForm form) {
+                  form.show((FormError? formError) async {
+                    if (context.mounted) setState(() {});
+                  });
+                },
+                (FormError formError) {
+                  debugPrint('Failed to load form: ${formError.message}');
+                },
+              );
+            }
+          },
+          (FormError error) {
+            debugPrint('Consent update error: ${error.message}');
+          },
+        );
+      } catch (_) {}
+
       if (context.mounted) {
         setState(() {});
         ScaffoldMessenger.of(

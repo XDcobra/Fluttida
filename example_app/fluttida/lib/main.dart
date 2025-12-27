@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'lab_screen.dart';
 import 'stacks/stacks_impl.dart';
@@ -7,8 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Request consent information update and show consent form if needed
-  await _requestConsentInfoUpdate();
+  // Run consent flow and persist personalization flag
+  await _initConsentAndPersistFlag();
 
   // Initialize MobileAds after consent handling
   MobileAds.instance.initialize();
@@ -32,56 +33,65 @@ Future<void> _initializeGlobalOverrides() async {
   }
 }
 
-/// Request consent information update using Google UMP SDK
-/// This handles GDPR, CCPA, and other privacy regulations
-Future<void> _requestConsentInfoUpdate() async {
-  final params = ConsentRequestParameters();
-
-  // For testing purposes, you can reset consent by uncommenting:
-  // await ConsentInformation.instance.reset();
+/// Runs consent flow and shows form when required.
+/// Returns a Future that completes when the consent flow is finished.
+Future<void> _initConsentAndPersistFlag() async {
+  final completer = Completer<void>();
+  
+  final params = ConsentRequestParameters(
+    tagForUnderAgeOfConsent: false,
+    consentDebugSettings: ConsentDebugSettings(
+      // Enable for manual testing outside EU/EEA:
+      // debugGeography: DebugGeography.debugGeographyEea,
+      // testDeviceIdentifiers: ['YOUR-DEVICE-ID'],
+    ),
+  );
 
   ConsentInformation.instance.requestConsentInfoUpdate(
     params,
     () async {
-      // Consent info updated successfully
-      if (await ConsentInformation.instance.isConsentFormAvailable()) {
-        await _loadConsentForm();
+      // Success callback - check and show form if required
+      final status = await ConsentInformation.instance.getConsentStatus();
+      debugPrint('Consent status after update: $status');
+
+      if (status == ConsentStatus.required) {
+        final available = await ConsentInformation.instance.isConsentFormAvailable();
+        if (available) {
+          ConsentForm.loadConsentForm(
+            (ConsentForm form) {
+              form.show((FormError? formError) async {
+                if (formError != null) {
+                  debugPrint('Consent form error: ${formError.message}');
+                }
+                // Complete when form is dismissed
+                completer.complete();
+              });
+            },
+            (FormError formError) {
+              debugPrint('Failed to load form: ${formError.message}');
+              completer.complete(); // Complete even on error
+            },
+          );
+        } else {
+          completer.complete(); // No form available
+        }
+      } else {
+        // Consent not required or already obtained
+        completer.complete();
       }
     },
     (FormError error) {
-      // Handle error - consent form not available
-      // We'll still initialize ads, but as non-personalized
-      debugPrint('Consent form error: ${error.errorCode} - ${error.message}');
+      debugPrint('Consent info update failed: ${error.message}');
+      completer.complete(); // Complete even on error
     },
   );
+  
+  // Wait for consent flow to complete
+  await completer.future;
+  debugPrint('Consent flow completed');
 }
 
-/// Load and show consent form if required
-Future<void> _loadConsentForm() async {
-  ConsentForm.loadConsentForm(
-    (ConsentForm consentForm) async {
-      final status = await ConsentInformation.instance.getConsentStatus();
-      if (status == ConsentStatus.required) {
-        consentForm.show((FormError? formError) {
-          // Handle form dismissal
-          if (formError != null) {
-            debugPrint(
-              'Consent form error: ${formError.errorCode} - ${formError.message}',
-            );
-          }
-          // Reload consent form for next time if needed
-          _loadConsentForm();
-        });
-      }
-    },
-    (FormError formError) {
-      // Handle form load error
-      debugPrint(
-        'Failed to load consent form: ${formError.errorCode} - ${formError.message}',
-      );
-    },
-  );
-}
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
