@@ -1,13 +1,9 @@
 # Fluttida (Network Stack Lab)
 
-<div style="display:flex;gap:8px;align-items:flex-start;width:90%;margin:0 auto;">
-  <img src="docs/images/main_screen.png" alt="Fluttida Main screen" style="width:25%;height:auto;border-radius:8px;" />
-  <img src="docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:25%;height:auto;border-radius:8px;" />
-  <img src="docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:25%;height:auto;border-radius:8px;" />
-  <img src="docs/images/pinning_screen.png" alt="Fluttida SSL Pinning Screen" style="width:25%;height:auto;border-radius:8px;" />
-</div>
+| | | | |
+|---|---:|---:|:---|
+| ![Main screen](docs/images/main_screen.png) | ![Results screen](docs/images/results_screen.png) | ![Logs screen](docs/images/logs_screen.png) | ![Pinning screen](docs/images/pinning_screen.png) |
 
-<br>
 
 <div align="center">
   <p>

@@ -112,12 +112,9 @@ This repo includes several scripts to make reverse engineering of flutter APIs e
 
 
 ## Example App: Fluttida ([example_app/fluttida](example_app/fluttida))
-<div style="display:flex;gap:8px;align-items:flex-start;width:90%;margin:0 auto;">
-  <img src="example_app/fluttida/docs/images/main_screen.png" alt="Fluttida Main screen" style="width:25%;height:auto;border-radius:8px;" />
-  <img src="example_app/fluttida/docs/images/results_screen.png" alt="Fluttida Results Screen" style="width:25%;height:auto;border-radius:8px;" />
-  <img src="example_app/fluttida/docs/images/logs_screen.png" alt="Fluttida Logs Screen" style="width:25%;height:auto;border-radius:8px;" />
-  <img src="example_app/fluttida/docs/images/pinning_screen.png" alt="Fluttida SSL Pinning Screen" style="width:25%;height:auto;border-radius:8px;" />
-</div>
+| | | | |
+|---|---:|---:|:---|
+| ![Main screen](example_app/fluttida/docs/images/main_screen.png) | ![Results screen](example_app/fluttida/docs/images/results_screen.png) | ![Logs screen](example_app/fluttida/docs/images/logs_screen.png) | ![Pinning screen](example_app/fluttida/docs/images/pinning_screen.png) |
 
 This repository includes a small Flutter example app located at [example_app/fluttida](example_app/fluttida). The app is a network-stack lab and playground designed to help you test, compare, and instrument different HTTP clients and platform stacks while using Frida.
 
