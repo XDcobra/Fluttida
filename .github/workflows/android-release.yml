@@ -128,6 +128,12 @@ jobs:
             example_app/fluttida/build/app/outputs/bundle/release/*.aab
             example_app/fluttida/build/app/outputs/flutter-apk/*.apk
 
+      - name: Cleanup sensitive files
+        if: always()
+        run: |
+          rm -f android/app/release.keystore
+          rm -f android/key.properties
+
   create-release:
     runs-on: ubuntu-latest
     needs: build-android-signed
