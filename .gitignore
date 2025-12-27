@@ -1,1 +1,13 @@
 .vscode
+
+# Prevent accidental commit of Android signing materials
+# Local developer config (keep out of VCS)
+example_app/fluttida/android/key.properties
+
+# Keystore files (any path under the app)
+example_app/fluttida/android/**/*.keystore
+example_app/fluttida/android/**/*.jks
+
+# Common names if placed directly under android/app
+example_app/fluttida/android/app/release.keystore
+example_app/fluttida/android/app/debug.keystore
