@@ -504,8 +504,8 @@ class _LabScreenState extends State<LabScreen> {
   void _loadBannerAd() {
     _bannerAd = BannerAd(
       adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-3940256099942544/2934735716',
+          ? kAdMobBannerUnitAndroid
+          : kAdMobBannerUnitIos,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
