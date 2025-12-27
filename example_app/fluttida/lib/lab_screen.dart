@@ -959,31 +959,74 @@ class _LabScreenState extends State<LabScreen> {
                             onTap: () {
                               showModalBottomSheet(
                                 context: context,
-                                builder: (_) => Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        s.name,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleMedium,
+                                isScrollControlled: true,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(16)),
+                                ),
+                                builder: (ctx) => DraggableScrollableSheet(
+                                  expand: false,
+                                  initialChildSize: 0.28,
+                                  minChildSize: 0.16,
+                                  maxChildSize: 0.9,
+                                  builder: (context, scrollController) {
+                                    return SingleChildScrollView(
+                                      controller: scrollController,
+                                      child: Padding(
+                                        padding: EdgeInsets.only(
+                                          left: 16,
+                                          right: 16,
+                                          top: 16,
+                                          bottom: MediaQuery.of(context)
+                                                  .viewInsets
+                                                  .bottom +
+                                              16,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              s.name,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Layer: ${s.layer.name}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            SelectableText(
+                                              s.description,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium,
+                                            ),
+                                            const SizedBox(height: 10),
+                                            SelectableText(
+                                              sup.supported
+                                                  ? 'Supported on this platform ✅'
+                                                  : 'Unsupported 🚫 — ${sup.reason}',
+                                              style: sup.supported
+                                                  ? Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                  : TextStyle(
+                                                      color: Theme.of(context)
+                                                          .colorScheme
+                                                          .error,
+                                                    ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                          ],
+                                        ),
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text("Layer: ${s.layer.name}"),
-                                      const SizedBox(height: 8),
-                                      Text(s.description),
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        sup.supported
-                                            ? "Supported on this platform ✅"
-                                            : "Unsupported 🚫 — ${sup.reason}",
-                                      ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 ),
                               );
                             },
