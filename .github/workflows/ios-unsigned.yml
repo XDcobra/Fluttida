@@ -30,7 +30,15 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
-# --- Patch Xcode project so LegacyCFURLConnection.m is compiled in Runner target ---
+      - name: Generate Flutter iOS config (creates Flutter Pod!)
+        run: flutter build ios --config-only --no-codesign
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      # --- Patch Xcode project so LegacyCFURLConnection.m is compiled in Runner target ---
       - name: Patch Runner.xcodeproj (add LegacyCFURLConnection)
         run: |
           sudo gem install xcodeproj
@@ -84,6 +92,9 @@ jobs:
         run: |
           grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj
 
+      - name: Verify Flutter Pod exists
+        run: |
+          ls -la ios/Pods/Flutter || (echo "❌ Flutter Pod missing" && exit 1)
 
       # Flutter übernimmt Pods + Xcode vollständig
       - name: Build iOS (release, unsigned)
