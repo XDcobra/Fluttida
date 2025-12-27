@@ -6,8 +6,8 @@
 storePassword=CHANGE_ME
 # Key password (often same as storePassword)
 keyPassword=CHANGE_ME
-# Alias of the key inside your keystore
-keyAlias=fluttida_key
+# Alias of the key inside your keystore (must match the alias used when generating the keystore, e.g. fluttida_key)
+keyAlias=CHANGE_ME
 # Relative path to the keystore from the android/ folder
 # For local builds, place your keystore at: example_app/fluttida/android/app/release.keystore
 storeFile=app/release.keystore
