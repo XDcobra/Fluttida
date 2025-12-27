@@ -119,12 +119,22 @@ jobs:
         env:
           ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
         run: |
-          # Android: replace test App ID in AndroidManifest.xml
-          sed -i 's/ca-app-pub-3940256099942544~3347511713/'"$ADMOB_APP_ID"'/g' android/app/src/main/AndroidManifest.xml
+          # Validate that ADMOB_APP_ID is set and follows expected format
+          if [ -z "$ADMOB_APP_ID" ]; then
+            echo "Error: ADMOB_APP_ID secret is not set"
+            exit 1
+          fi
+          
+          if ! echo "$ADMOB_APP_ID" | grep -q '^ca-app-pub-'; then
+            echo "Warning: ADMOB_APP_ID does not start with 'ca-app-pub-', got: $ADMOB_APP_ID"
+          fi
+          
+          # Android: replace test App ID in AndroidManifest.xml (using | delimiter for safety)
+          sed -i "s|ca-app-pub-3940256099942544~3347511713|$ADMOB_APP_ID|g" android/app/src/main/AndroidManifest.xml
           
           # iOS: replace test App ID in Info.plist (if exists)
           if [ -f ios/Runner/Info.plist ]; then
-            sed -i 's/ca-app-pub-3940256099942544~3347511713/'"$ADMOB_APP_ID"'/g' ios/Runner/Info.plist
+            sed -i "s|ca-app-pub-3940256099942544~3347511713|$ADMOB_APP_ID|g" ios/Runner/Info.plist
           fi
 
       - name: Decode Android keystore
