@@ -17,6 +17,10 @@ const String kVersionLabel = 'v$kAppVersion (build $kBuildNumber)';
 const bool kIsLabApp = bool.fromEnvironment('LAB_APP', defaultValue: true);
 
 /// AdMob App ID (Test ID as default; override in CI for release builds)
+/// Note: This constant is primarily for documentation/reference purposes.
+/// The actual AdMob App ID is injected into native configuration files
+/// (AndroidManifest.xml and Info.plist) during the CI build process.
+/// This constant can be used in future releases if needed.
 const String kAdMobAppId = String.fromEnvironment(
   'ADMOB_APP_ID',
   defaultValue: 'ca-app-pub-3940256099942544~3347511713',
