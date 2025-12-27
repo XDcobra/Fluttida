@@ -263,9 +263,6 @@ jobs:
           name: "fluttida_${{ needs.build-android-signed.outputs.version_name }}"
           body: |
             Automated signed Android build for tag ${{ github.ref_name }}
-
-            SHA-256 checksums:
-            ${{ steps.prep_assets.outputs.checksums }}
           draft: false
           prerelease: false
           files: |

@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'pinning_config.dart';
 import 'stacks/stacks_impl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'versions.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -102,6 +104,8 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          // GDPR Consent Card (only shown in release mode for store app)
+          if (!kIsLabApp) _buildConsentCard(),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -618,5 +622,174 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildConsentCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Privacy & Ads',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            FutureBuilder<ConsentStatus>(
+              future: ConsentInformation.instance.getConsentStatus(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const CircularProgressIndicator();
+                }
+
+                final status = snapshot.data!;
+                String statusText;
+                Color statusColor;
+
+                switch (status) {
+                  case ConsentStatus.required:
+                    statusText = 'Consent required';
+                    statusColor = Colors.orange;
+                    break;
+                  case ConsentStatus.notRequired:
+                    statusText = 'Consent not required';
+                    statusColor = Colors.grey;
+                    break;
+                  case ConsentStatus.obtained:
+                    statusText = 'Consent obtained';
+                    statusColor = Colors.green;
+                    break;
+                  case ConsentStatus.unknown:
+                  default:
+                    statusText = 'Unknown';
+                    statusColor = Colors.grey;
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('Consent Status: '),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: statusColor),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    FutureBuilder<bool>(
+                      future: ConsentInformation.instance.canRequestAds(),
+                      builder: (context, adsSnapshot) {
+                        final canRequestAds = adsSnapshot.data ?? false;
+                        return Text(
+                          canRequestAds
+                              ? '✓ Personalized ads enabled'
+                              : 'ⓘ Non-personalized ads only',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: canRequestAds ? Colors.green : Colors.orange,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'You can review or change your privacy settings at any time.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _showConsentForm(context),
+                          icon: const Icon(Icons.privacy_tip, size: 18),
+                          label: const Text('Privacy Settings'),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: () => _resetConsent(context),
+                          child: const Text('Reset'),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showConsentForm(BuildContext context) async {
+    ConsentForm.loadConsentForm(
+      (ConsentForm consentForm) {
+        consentForm.show((FormError? formError) {
+          if (formError != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: ${formError.message}')),
+            );
+          } else {
+            setState(() {}); // Refresh to show updated status
+          }
+        });
+      },
+      (FormError formError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load form: ${formError.message}')),
+        );
+      },
+    );
+  }
+
+  Future<void> _resetConsent(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Consent'),
+        content: const Text(
+          'This will reset your privacy preferences. '
+          'You will be asked again to make your choice.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ConsentInformation.instance.reset();
+      if (context.mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Consent has been reset')));
+      }
+    }
   }
 }

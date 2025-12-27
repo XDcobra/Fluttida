@@ -503,19 +503,26 @@ class _LabScreenState extends State<LabScreen> {
     super.dispose();
   }
 
-  void _loadBannerAd() {
+  void _loadBannerAd() async {
+    // Determine if we can show personalized ads based on consent status
+    final canRequestAds = await ConsentInformation.instance.canRequestAds();
+
+    // Create AdRequest - will be non-personalized if consent not given
+    final adRequest = AdRequest(nonPersonalizedAds: !canRequestAds);
+
     _bannerAd = BannerAd(
       adUnitId: Platform.isAndroid
           ? kAdMobBannerUnitAndroid
           : kAdMobBannerUnitIos,
       size: AdSize.banner,
-      request: const AdRequest(),
+      request: adRequest,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
           if (!mounted) return;
           setState(() => _isBannerReady = true);
         },
         onAdFailedToLoad: (ad, error) {
+          debugPrint('Ad failed to load: ${error.message}');
           ad.dispose();
         },
       ),
