@@ -297,18 +297,18 @@ class LabStacks {
       StackDefinition(
         id: "ios_legacy",
         name: "NSURLConnection / CFURLConnection",
-        description: "Legacy iOS connection APIs (your AppDelegate channel).",
+        description: "Legacy iOS connection APIs via AppDelegate MethodChannel.",
         layer: StackLayer.native,
         support: iosOnly,
         run: iosLegacyNsUrlConnection,
       ),
 
-      // Android native placeholders (Step 2+)
+      // Android native
+      // (Descriptions updated to remove internal step placeholders)
       StackDefinition(
         id: "android_httpurlconnection",
         name: "HttpURLConnection (Android)",
-        description:
-            "Native Android HttpURLConnection (placeholder for Step 2).",
+        description: "Native Android HttpURLConnection implementation (uses platform channel when available).",
         layer: StackLayer.native,
         support: androidOnly,
         run: androidHttpUrlConnection,
@@ -316,7 +316,7 @@ class LabStacks {
       StackDefinition(
         id: "android_okhttp",
         name: "OkHttp (Android)",
-        description: "Native OkHttp client (placeholder for Step 3).",
+        description: "Native OkHttp client implementation (uses platform channel when available).",
         layer: StackLayer.native,
         support: androidOnly,
         run: androidOkHttp,
@@ -324,7 +324,7 @@ class LabStacks {
       StackDefinition(
         id: "android_cronet",
         name: "Cronet (Android)",
-        description: "Cronet stack (placeholder later).",
+        description: "Cronet network stack (if available on the device).",
         layer: StackLayer.native,
         support: androidOnly,
         run: androidCronet,
