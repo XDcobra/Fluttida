@@ -115,6 +115,28 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Inject AdMob App ID into native configs
+        env:
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+        run: |
+          # Validate that ADMOB_APP_ID is set and follows expected format
+          if [ -z "$ADMOB_APP_ID" ]; then
+            echo "Error: ADMOB_APP_ID secret is not set"
+            exit 1
+          fi
+          
+          if ! echo "$ADMOB_APP_ID" | grep -q '^ca-app-pub-'; then
+            echo "Warning: ADMOB_APP_ID does not start with 'ca-app-pub-', got: $ADMOB_APP_ID"
+          fi
+          
+          # Android: replace test App ID in AndroidManifest.xml (using | delimiter for safety)
+          sed -i "s|ca-app-pub-3940256099942544~3347511713|$ADMOB_APP_ID|g" android/app/src/main/AndroidManifest.xml
+          
+          # iOS: replace test App ID in Info.plist (if exists)
+          if [ -f ios/Runner/Info.plist ]; then
+            sed -i "s|ca-app-pub-3940256099942544~3347511713|$ADMOB_APP_ID|g" ios/Runner/Info.plist
+          fi
+
       - name: Decode Android keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -136,22 +158,36 @@ jobs:
           EOF
 
       - name: Build Android App Bundle (signed)
+        env:
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_BANNER_UNIT_ANDROID: ${{ secrets.ADMOB_BANNER_UNIT_ANDROID }}
+          ADMOB_BANNER_UNIT_IOS: ${{ secrets.ADMOB_BANNER_UNIT_IOS }}
         run: |
           flutter build appbundle --release \
             --build-name="${{ steps.version.outputs.version_name }}" \
             --build-number="${{ steps.version.outputs.build_number }}" \
             --dart-define=LAB_APP=false \
             --dart-define=APP_VERSION="${{ steps.version.outputs.version_name }}" \
-            --dart-define=APP_BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
+            --dart-define=APP_BUILD_NUMBER="${{ steps.version.outputs.build_number }}" \
+            --dart-define=ADMOB_APP_ID="$ADMOB_APP_ID" \
+            --dart-define=ADMOB_BANNER_UNIT_ANDROID="$ADMOB_BANNER_UNIT_ANDROID" \
+            --dart-define=ADMOB_BANNER_UNIT_IOS="$ADMOB_BANNER_UNIT_IOS"
 
       - name: Build Android APK (signed)
+        env:
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_BANNER_UNIT_ANDROID: ${{ secrets.ADMOB_BANNER_UNIT_ANDROID }}
+          ADMOB_BANNER_UNIT_IOS: ${{ secrets.ADMOB_BANNER_UNIT_IOS }}
         run: |
           flutter build apk --release \
             --build-name="${{ steps.version.outputs.version_name }}" \
             --build-number="${{ steps.version.outputs.build_number }}" \
             --dart-define=LAB_APP=false \
             --dart-define=APP_VERSION="${{ steps.version.outputs.version_name }}" \
-            --dart-define=APP_BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
+            --dart-define=APP_BUILD_NUMBER="${{ steps.version.outputs.build_number }}" \
+            --dart-define=ADMOB_APP_ID="$ADMOB_APP_ID" \
+            --dart-define=ADMOB_BANNER_UNIT_ANDROID="$ADMOB_BANNER_UNIT_ANDROID" \
+            --dart-define=ADMOB_BANNER_UNIT_IOS="$ADMOB_BANNER_UNIT_IOS"
 
       - name: Cleanup keystore
         if: always()

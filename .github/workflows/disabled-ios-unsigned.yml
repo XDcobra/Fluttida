@@ -106,7 +106,7 @@ jobs:
         run: |
           ls -la ios/Pods/Flutter || (echo "❌ Flutter Pod missing" && exit 1)
 
-      # Flutter übernimmt Pods + Xcode vollständig
+      # Flutter fully manages Pods and Xcode
       - name: Build iOS (release, unsigned)
         run: flutter build ios --release --no-codesign
         continue-on-error: true
@@ -158,7 +158,7 @@ jobs:
           cat ios/Flutter/Generated.xcconfig || echo "❌ Generated.xcconfig missing"
 
 
-      # IPA manuell aus .app erzeugen
+      # Create IPA manually from .app
       - name: Create unsigned IPA from .app
         run: |
           APP_DIR="build/ios/iphoneos/Runner.app"

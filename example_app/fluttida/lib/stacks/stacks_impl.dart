@@ -317,9 +317,8 @@ class StacksImpl {
   // ---------------------------------------------------------------------------
   // 5) iOS legacy NSURLConnection / CFURLConnection
   //
-  // WICHTIG: Das hier ist nur ein Platzhalter.
-  // Du hast dafür bereits einen MethodChannel in AppDelegate.swift.
-  // In Step 2.3 verdrahten wir diesen Channel hier sauber.
+  // IMPORTANT: This is only a placeholder.
+  // You already have a MethodChannel for this in AppDelegate.swift.
   // ---------------------------------------------------------------------------
   static Future<RequestResult> requestLegacyIos(RequestConfig cfg) async {
     if (!io.Platform.isIOS) {

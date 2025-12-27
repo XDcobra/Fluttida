@@ -39,7 +39,7 @@ post_install do |installer|
       config.build_settings['CODE_SIGNING_IDENTITY'] = ''
     end
 
-    # ✅ Privacy bundle targets NUR hier anfassen
+    # Privacy bundle targets only change here
     if target.name.end_with?('_privacy')
       target.build_configurations.each do |config|
         config.build_settings['SKIP_INSTALL'] = 'YES'
