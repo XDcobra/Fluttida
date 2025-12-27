@@ -1,0 +1,190 @@
+# INFO: Disabled for now, as i cannot get the iOS build to work on GitHub Actions currently.
+# The reason being, i dont own a Mac, and the macOS runners on GitHub Actions seem to have issues with Flutter + CocoaPods.
+# Once I can test this properly, I'll re-enable this workflow.
+# related github issue: https://github.com/flutter/flutter/issues/169272
+
+name: iOS unsigned build (.app + pseudo .ipa)
+
+# Triggers
+# This workflow is manual-only by default. Use the Actions UI -> "Run workflow"
+on:
+  workflow_dispatch: {}
+
+# To run automatically when pushing to main, uncomment below.
+  # workflow_dispatch:
+  # push:
+  #   branches: ["main"]
+
+jobs:
+  build-ios-unsigned:
+    runs-on: macos-14
+
+    defaults:
+      run:
+        working-directory: example_app/fluttida
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: "3.38.5"
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Generate Flutter iOS config (creates Flutter Pod!)
+        run: flutter build ios --config-only --no-codesign
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      # --- Patch Xcode project so LegacyCFURLConnection.m is compiled in Runner target ---
+      - name: Patch Runner.xcodeproj (add LegacyCFURLConnection)
+        run: |
+          sudo gem install xcodeproj
+
+          ruby - <<'RUBY'
+            require 'xcodeproj'
+
+            proj_path = 'ios/Runner.xcodeproj'
+            proj = Xcodeproj::Project.open(proj_path)
+
+            target = proj.targets.find { |t| t.name == 'Runner' }
+            raise "Runner target not found" unless target
+
+            runner_group = proj.main_group.find_subpath('Runner', true)
+
+            h_path = 'LegacyCFURLConnection.h'
+            m_path = 'LegacyCFURLConnection.m'
+
+            proj.files.find { |f| f.path == h_path } || runner_group.new_file(h_path)
+            m_ref = proj.files.find { |f| f.path == m_path } || runner_group.new_file(m_path)
+
+            already = target.source_build_phase.files_references.any? { |fr| fr.path == m_path }
+            unless already
+              target.add_file_references([m_ref])
+              puts "Added #{m_path} to Runner target"
+            else
+              puts "#{m_path} already in Runner target"
+            end
+
+            # --- Swift settings fix ---
+            target.build_configurations.each do |config|
+              config.build_settings['SWIFT_VERSION'] = '5.0'
+              config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'YES'
+            end
+
+            # --- Ensure Dummy.swift is in Runner target ---
+            dummy = proj.files.find { |f| f.path == 'Dummy.swift' }
+            if dummy
+              unless target.source_build_phase.files_references.include?(dummy)
+                target.add_file_references([dummy])
+                puts "Added Dummy.swift to Runner target"
+              end
+            else
+              puts "Dummy.swift not found in project file references"
+            end
+
+            proj.save
+          RUBY
+
+      - name: Verify pbxproj contains LegacyCFURLConnection
+        run: |
+          grep -n "LegacyCFURLConnection" ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Verify Flutter Pod exists
+        run: |
+          ls -la ios/Pods/Flutter || (echo "❌ Flutter Pod missing" && exit 1)
+
+      # Flutter übernimmt Pods + Xcode vollständig
+      - name: Build iOS (release, unsigned)
+        run: flutter build ios --release --no-codesign
+        continue-on-error: true
+
+      - name: DEBUG – Pods & Flutter Pod
+        run: |
+          echo "=== Pods root ==="
+          ls -la ios/Pods || true
+
+          echo ""
+          echo "=== Flutter Pod directory ==="
+          ls -la ios/Pods/Flutter || echo "❌ Pods/Flutter missing"
+
+          echo ""
+          echo "=== Flutter.framework search ==="
+          find ios/Pods -name "Flutter.framework" -maxdepth 5 || echo "❌ Flutter.framework NOT found"
+
+
+      - name: DEBUG – Flutter build settings (module)
+        run: |
+          cd ios
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Flutter \
+            -showBuildSettings | grep -E "DEFINES_MODULE|PRODUCT_TYPE|MODULE"
+
+      - name: DEBUG – Swift & Framework search paths
+        run: |
+          cd ios
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -showBuildSettings | grep -E "SWIFT_INCLUDE_PATHS|FRAMEWORK_SEARCH_PATHS"
+
+
+      - name: DEBUG – Podspec Flutter dependencies
+        run: |
+          echo "=== webview_flutter_wkwebview podspec ==="
+          sed -n '1,200p' ios/Pods/Local\ Podspecs/webview_flutter_wkwebview.podspec.json || true
+
+          echo ""
+          echo "=== shared_preferences_foundation podspec ==="
+          sed -n '1,200p' ios/Pods/Local\ Podspecs/shared_preferences_foundation.podspec.json || true
+
+      - name: DEBUG – Generated.xcconfig
+        run: |
+          echo "=== ios/Flutter/Generated.xcconfig ==="
+          cat ios/Flutter/Generated.xcconfig || echo "❌ Generated.xcconfig missing"
+
+
+      # IPA manuell aus .app erzeugen
+      - name: Create unsigned IPA from .app
+        run: |
+          APP_DIR="build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP_DIR" ]; then
+            echo "Runner.app not found at $APP_DIR"
+            ls -la build/ios/iphoneos || true
+            exit 1
+          fi
+
+          mkdir -p build/ios/ipa/Payload
+          rm -rf build/ios/ipa/Payload/*
+
+          cp -R "$APP_DIR" build/ios/ipa/Payload/Runner.app
+
+          cd build/ios/ipa
+          zip -r Fluttida-unsigned.ipa Payload
+          cd -
+
+      - name: Upload Runner.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fluttida-Runner-app
+          path: example_app/fluttida/build/ios/iphoneos/Runner.app
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fluttida-unsigned-ipa
+          path: example_app/fluttida/build/ios/ipa/Fluttida-unsigned.ipa
