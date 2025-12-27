@@ -962,7 +962,8 @@ class _LabScreenState extends State<LabScreen> {
                                 isScrollControlled: true,
                                 shape: const RoundedRectangleBorder(
                                   borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(16)),
+                                    top: Radius.circular(16),
+                                  ),
                                 ),
                                 builder: (ctx) => DraggableScrollableSheet(
                                   expand: false,
@@ -977,9 +978,10 @@ class _LabScreenState extends State<LabScreen> {
                                           left: 16,
                                           right: 16,
                                           top: 16,
-                                          bottom: MediaQuery.of(context)
-                                                  .viewInsets
-                                                  .bottom +
+                                          bottom:
+                                              MediaQuery.of(
+                                                context,
+                                              ).viewInsets.bottom +
                                               16,
                                         ),
                                         child: Column(
@@ -988,23 +990,23 @@ class _LabScreenState extends State<LabScreen> {
                                           children: [
                                             Text(
                                               s.name,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.titleMedium,
                                             ),
                                             const SizedBox(height: 8),
                                             Text(
                                               'Layer: ${s.layer.name}',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall,
                                             ),
                                             const SizedBox(height: 8),
                                             SelectableText(
                                               s.description,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodyMedium,
                                             ),
                                             const SizedBox(height: 10),
                                             SelectableText(
@@ -1012,13 +1014,13 @@ class _LabScreenState extends State<LabScreen> {
                                                   ? 'Supported on this platform ✅'
                                                   : 'Unsupported 🚫 — ${sup.reason}',
                                               style: sup.supported
-                                                  ? Theme.of(context)
-                                                      .textTheme
-                                                      .bodyMedium
+                                                  ? Theme.of(
+                                                      context,
+                                                    ).textTheme.bodyMedium
                                                   : TextStyle(
-                                                      color: Theme.of(context)
-                                                          .colorScheme
-                                                          .error,
+                                                      color: Theme.of(
+                                                        context,
+                                                      ).colorScheme.error,
                                                     ),
                                             ),
                                             const SizedBox(height: 12),
