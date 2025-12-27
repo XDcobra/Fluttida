@@ -140,6 +140,7 @@ jobs:
           flutter build appbundle --release \
             --build-name="${{ steps.version.outputs.version_name }}" \
             --build-number="${{ steps.version.outputs.build_number }}" \
+            --dart-define=LAB_APP=false \
             --dart-define=APP_VERSION="${{ steps.version.outputs.version_name }}" \
             --dart-define=APP_BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
 
@@ -148,6 +149,7 @@ jobs:
           flutter build apk --release \
             --build-name="${{ steps.version.outputs.version_name }}" \
             --build-number="${{ steps.version.outputs.build_number }}" \
+            --dart-define=LAB_APP=false \
             --dart-define=APP_VERSION="${{ steps.version.outputs.version_name }}" \
             --dart-define=APP_BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
 
