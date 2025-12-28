@@ -14,7 +14,7 @@ Future<RequestResult> requestIosNativeCurl(RequestConfig cfg) async {
       status: null,
       body: '',
       durationMs: 0,
-      error: 'iOS native curl is iOS-only',
+      error: 'iOS native curl (libcurl) is iOS-only',
     );
   }
 

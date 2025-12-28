@@ -33,6 +33,7 @@ Future<RequestResult> requestHttpViaExplicitIoClient(RequestConfig cfg) async {
     final streamed = await client.send(r);
     final resp = await http.Response.fromStream(streamed);
 
+    client.close();
     sw.stop();
     return RequestResult(
       status: resp.statusCode,
@@ -43,7 +44,7 @@ Future<RequestResult> requestHttpViaExplicitIoClient(RequestConfig cfg) async {
     sw.stop();
     return RequestResult(
       status: null,
-      body: "",
+      body: '',
       durationMs: sw.elapsedMilliseconds,
       error: e.toString(),
     );

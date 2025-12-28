@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Run consent flow and persist personalization flag
+  // Run consent flow before initializing ads
   await _initConsentAndPersistFlag();
 
   // Initialize MobileAds after consent handling

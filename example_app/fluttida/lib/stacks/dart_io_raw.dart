@@ -4,13 +4,12 @@ import 'dart:io' as io;
 import '../lab_screen.dart';
 import '../pinning/stacks/dart_io_pinning.dart';
 
-/// RAW dart:io HttpClient implementation extracted from `stacks_impl.dart`.
 Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
   final sw = Stopwatch()..start();
+  final client = DartIoPinning.shouldPin()
+      ? DartIoPinning.createClient()
+      : io.HttpClient();
   try {
-    final client = DartIoPinning.shouldPin()
-        ? DartIoPinning.createClient()
-        : io.HttpClient();
     client.connectionTimeout = cfg.timeout;
 
     final uri = Uri.parse(cfg.url);
@@ -59,5 +58,7 @@ Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
       durationMs: sw.elapsedMilliseconds,
       error: e.toString(),
     );
+  } finally {
+    client.close();
   }
 }

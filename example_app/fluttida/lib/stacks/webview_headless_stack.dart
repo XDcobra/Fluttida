@@ -8,19 +8,14 @@ import '../lab_screen.dart';
 
 Future<RequestResult> requestWebViewHeadless(RequestConfig cfg) async {
   final sw = Stopwatch()..start();
-  try {
-    throw Exception(
-      "Provide WebViewController from UI and call requestWebViewHeadlessWith(controller, cfg)",
-    );
-  } catch (e) {
-    sw.stop();
-    return RequestResult(
-      status: null,
-      body: "",
-      durationMs: sw.elapsedMilliseconds,
-      error: e.toString(),
-    );
-  }
+  sw.stop();
+  return RequestResult(
+    status: null,
+    body: '',
+    durationMs: sw.elapsedMilliseconds,
+    error:
+        "Provide WebViewController from UI and call requestWebViewHeadlessWith(controller, cfg)",
+  );
 }
 
 Future<RequestResult> requestWebViewHeadlessWith(
@@ -58,7 +53,11 @@ Future<RequestResult> requestWebViewHeadlessWith(
         );
         loaded = true;
       }
-    } catch (_) {}
+    } catch (e) {
+      // Expected: LoadRequestMethod may not exist in some webview versions
+      // ignore: avoid_print
+      print('WebView loadRequest with method failed: $e');
+    }
 
     if (!loaded) await controller.loadRequest(uri);
 
@@ -105,7 +104,11 @@ Future<RequestResult> requestWebViewHeadlessWith(
         } else {
           html = result.toString();
         }
-      } catch (_) {}
+      } catch (e) {
+        // Expected: HTML may not be ready during page load
+        // ignore: avoid_print
+        print('WebView HTML retrieval attempt ${i + 1} failed: $e');
+      }
       if (html.isNotEmpty) break;
       await Future.delayed(const Duration(milliseconds: 300));
     }
@@ -120,7 +123,7 @@ Future<RequestResult> requestWebViewHeadlessWith(
     sw.stop();
     return RequestResult(
       status: null,
-      body: "",
+      body: '',
       durationMs: sw.elapsedMilliseconds,
       error: e.toString(),
     );

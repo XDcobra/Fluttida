@@ -44,5 +44,11 @@ Future<RequestResult> requestHttpDefault(RequestConfig cfg) async {
       durationMs: sw.elapsedMilliseconds,
       error: e.toString(),
     );
+  } finally {
+    try {
+      client.close();
+    } catch (_) {
+      // Client may already be closed
+    }
   }
 }

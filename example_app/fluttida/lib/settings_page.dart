@@ -775,7 +775,7 @@ class _SettingsPageState extends State<SettingsPage> {
     ConsentForm.loadConsentForm(
       (ConsentForm consentForm) {
         consentForm.show((FormError? formError) async {
-          if (formError != null) {
+          if (formError != null && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Error: ${formError.message}')),
             );
@@ -786,9 +786,11 @@ class _SettingsPageState extends State<SettingsPage> {
         });
       },
       (FormError formError) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load form: ${formError.message}')),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to load form: ${formError.message}')),
+          );
+        }
       },
     );
   }
@@ -838,18 +840,34 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               );
             }
+            if (context.mounted) {
+              setState(() {});
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Consent has been reset')),
+              );
+            }
           },
           (FormError error) {
             debugPrint('Consent update error: ${error.message}');
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Failed to reset consent. Please try again.'),
+                ),
+              );
+            }
           },
         );
-      } catch (_) {}
-
-      if (context.mounted) {
-        setState(() {});
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Consent has been reset')));
+      } catch (error, stackTrace) {
+        debugPrint('Exception during consent reset flow: $error');
+        debugPrint('Stack trace: $stackTrace');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to reset consent. Please try again.'),
+            ),
+          );
+        }
       }
     }
   }
