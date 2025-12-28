@@ -34,7 +34,7 @@ Future<RequestResult> requestCupertinoDefault(RequestConfig cfg) async {
     sw.stop();
     return RequestResult(
       status: null,
-      body: "",
+      body: '',
       durationMs: sw.elapsedMilliseconds,
       error: e.toString(),
     );

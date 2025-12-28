@@ -7,8 +7,9 @@ import '../pinning/stacks/dart_io_pinning.dart';
 /// RAW dart:io HttpClient implementation extracted from `stacks_impl.dart`.
 Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
   final sw = Stopwatch()..start();
+  io.HttpClient? client;
   try {
-    final client = DartIoPinning.shouldPin()
+    client = DartIoPinning.shouldPin()
         ? DartIoPinning.createClient()
         : io.HttpClient();
     client.connectionTimeout = cfg.timeout;
@@ -59,5 +60,7 @@ Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
       durationMs: sw.elapsedMilliseconds,
       error: e.toString(),
     );
+  } finally {
+    client?.close();
   }
 }

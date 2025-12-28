@@ -9,6 +9,7 @@ import '../pinning/stacks/package_http_pinning.dart';
 
 Future<RequestResult> requestHttpDefault(RequestConfig cfg) async {
   final sw = Stopwatch()..start();
+  IOClient? client;
   try {
     final uri = Uri.parse(cfg.url);
     final usePinning = PackageHttpPinning.shouldPinDefault();
@@ -18,7 +19,7 @@ Future<RequestResult> requestHttpDefault(RequestConfig cfg) async {
         : io.HttpClient();
     ioHttpClient.connectionTimeout = cfg.timeout;
 
-    final client = IOClient(ioHttpClient);
+    client = IOClient(ioHttpClient);
 
     final http.Request r = http.Request(cfg.method, uri);
     r.headers.addAll(cfg.headers);
@@ -28,7 +29,6 @@ Future<RequestResult> requestHttpDefault(RequestConfig cfg) async {
 
     final streamed = await client.send(r);
     final resp = await http.Response.fromStream(streamed);
-    client.close();
 
     sw.stop();
     return RequestResult(
@@ -44,5 +44,7 @@ Future<RequestResult> requestHttpDefault(RequestConfig cfg) async {
       durationMs: sw.elapsedMilliseconds,
       error: e.toString(),
     );
+  } finally {
+    client?.close();
   }
 }
