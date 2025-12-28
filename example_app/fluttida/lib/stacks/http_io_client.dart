@@ -9,6 +9,7 @@ import '../lab_screen.dart';
 
 Future<RequestResult> requestHttpViaExplicitIoClient(RequestConfig cfg) async {
   final sw = Stopwatch()..start();
+  IOClient? client;
   try {
     final usePinning = PackageHttpPinning.shouldPinViaIOClient();
     final io.HttpClient ioHttpClient = usePinning
@@ -23,7 +24,7 @@ Future<RequestResult> requestHttpViaExplicitIoClient(RequestConfig cfg) async {
     }
     ioHttpClient.connectionTimeout = cfg.timeout;
 
-    final client = IOClient(ioHttpClient);
+    client = IOClient(ioHttpClient);
 
     final uri = Uri.parse(cfg.url);
     final http.Request r = http.Request(cfg.method, uri);
@@ -33,7 +34,6 @@ Future<RequestResult> requestHttpViaExplicitIoClient(RequestConfig cfg) async {
     final streamed = await client.send(r);
     final resp = await http.Response.fromStream(streamed);
 
-    client.close();
     sw.stop();
     return RequestResult(
       status: resp.statusCode,
@@ -48,5 +48,7 @@ Future<RequestResult> requestHttpViaExplicitIoClient(RequestConfig cfg) async {
       durationMs: sw.elapsedMilliseconds,
       error: e.toString(),
     );
+  } finally {
+    client?.close();
   }
 }
