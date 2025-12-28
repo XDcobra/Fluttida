@@ -18,14 +18,17 @@ Future<RequestResult> requestAndroidHttpUrlConnection(RequestConfig cfg) async {
     );
   }
 
-  final map = await _legacyChannel.invokeMapMethod<String, dynamic>('androidHttpURLConnection', {
-    'url': cfg.url,
-    'method': cfg.method,
-    'headers': cfg.headers,
-    'body': cfg.body,
-    'timeoutMs': cfg.timeout.inMilliseconds,
-  });
+  final map = await _legacyChannel
+      .invokeMapMethod<String, dynamic>('androidHttpURLConnection', {
+        'url': cfg.url,
+        'method': cfg.method,
+        'headers': cfg.headers,
+        'body': cfg.body,
+        'timeoutMs': cfg.timeout.inMilliseconds,
+      });
 
-  return stacks_common.fromNativeMap(map,
-      noResponseError: 'No response from native channel (HttpURLConnection).');
+  return stacks_common.fromNativeMap(
+    map,
+    noResponseError: 'No response from native channel (HttpURLConnection).',
+  );
 }

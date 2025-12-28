@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io' as io;
 
 import 'package:http/http.dart' as http;
@@ -14,7 +13,9 @@ Future<RequestResult> requestHttpDefault(RequestConfig cfg) async {
     final uri = Uri.parse(cfg.url);
     final usePinning = PackageHttpPinning.shouldPinDefault();
 
-    final ioHttpClient = usePinning ? PackageHttpPinning.createClient() : io.HttpClient();
+    final ioHttpClient = usePinning
+        ? PackageHttpPinning.createClient()
+        : io.HttpClient();
     ioHttpClient.connectionTimeout = cfg.timeout;
 
     final client = IOClient(ioHttpClient);

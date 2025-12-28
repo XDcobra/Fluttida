@@ -11,12 +11,15 @@ Future<RequestResult> requestHttpViaExplicitIoClient(RequestConfig cfg) async {
   final sw = Stopwatch()..start();
   try {
     final usePinning = PackageHttpPinning.shouldPinViaIOClient();
-    final io.HttpClient ioHttpClient =
-        usePinning ? PackageHttpPinning.createClient() : io.HttpClient();
+    final io.HttpClient ioHttpClient = usePinning
+        ? PackageHttpPinning.createClient()
+        : io.HttpClient();
     if (usePinning) {
       // lightweight debug trace — logging sink lives in stacks_impl
       // ignore: avoid_print
-      print('[PIN DEBUG] requestHttpViaExplicitIoClient: instrumented HttpClient created');
+      print(
+        '[PIN DEBUG] requestHttpViaExplicitIoClient: instrumented HttpClient created',
+      );
     }
     ioHttpClient.connectionTimeout = cfg.timeout;
 

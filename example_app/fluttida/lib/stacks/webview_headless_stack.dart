@@ -52,7 +52,9 @@ Future<RequestResult> requestWebViewHeadlessWith(
           uri,
           method: loadMethod,
           headers: cfg.headers,
-          body: cfg.body != null ? Uint8List.fromList(utf8.encode(cfg.body!)) : null,
+          body: cfg.body != null
+              ? Uint8List.fromList(utf8.encode(cfg.body!))
+              : null,
         );
         loaded = true;
       }

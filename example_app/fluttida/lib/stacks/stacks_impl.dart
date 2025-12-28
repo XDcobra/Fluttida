@@ -1,9 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io' as io;
-
-import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/services.dart';
 import 'dart_io_raw.dart' as dart_io_raw;
@@ -11,19 +6,18 @@ import 'http_default.dart' as http_default;
 import 'http_io_client.dart' as http_io_client;
 import 'cupertino_http_stack.dart' as cupertino_http_stack;
 import 'legacy_ios_stack.dart' as legacy_ios_stack;
-import 'android_http_urlconnection_stack.dart' as android_http_urlconnection_stack;
+import 'android_http_urlconnection_stack.dart'
+    as android_http_urlconnection_stack;
 import 'android_okhttp_stack.dart' as android_okhttp_stack;
 import 'android_cronet_stack.dart' as android_cronet_stack;
 import 'android_native_curl_stack.dart' as android_native_curl_stack;
-import 'stacks_common.dart' as stacks_common;
+// common helpers moved to per-stack modules
 import 'webview_headless_stack.dart' as webview_headless_stack;
 import 'ios_native_curl_stack.dart' as ios_native_curl_stack;
 
 import '../lab_screen.dart';
 import '../pinning_config.dart';
 import '../pinning/global_http_override.dart';
-import '../pinning/stacks/dart_io_pinning.dart';
-import '../pinning/stacks/package_http_pinning.dart';
 
 class StacksImpl {
   static const MethodChannel _legacyChannel = MethodChannel('fluttida/network');
@@ -80,20 +74,10 @@ class StacksImpl {
     }
   }
 
-  // Normalize native channel maps to RequestResult with safe defaults
-  static RequestResult _fromNativeMap(
-    Map<dynamic, dynamic>? map, {
-    String noResponseError = 'No response from native channel.',
-  }) => stacks_common.fromNativeMap(map, noResponseError: noResponseError);
-
   // Helper that instruments `HttpClient` with debug logging for certificate
-  // verification. It sets a `badCertificateCallback` that prints certificate
-  // details so we can see whether the callback is being invoked at runtime.
-  // In debug builds the callback rejects the certificate to surface pinning
-  // problems; in release builds it preserves the previous (accept) behavior.
-  static bool _shouldPinDartIoRaw() {
-    return DartIoPinning.shouldPin();
-  }
+  // verification. In debug builds the callback rejects the certificate to
+  // surface pinning problems; in release builds it preserves the previous
+  // (accept) behavior. Pinning decisions live in the per-stack modules.
 
   static void _log(String msg) {
     // Console log for dev
@@ -136,9 +120,8 @@ class StacksImpl {
   // ---------------------------------------------------------------------------
   // 4) cupertino_http (iOS NSURLSession)
   // ---------------------------------------------------------------------------
-  static Future<RequestResult> requestCupertinoDefault(
-    RequestConfig cfg,
-  ) => cupertino_http_stack.requestCupertinoDefault(cfg);
+  static Future<RequestResult> requestCupertinoDefault(RequestConfig cfg) =>
+      cupertino_http_stack.requestCupertinoDefault(cfg);
 
   // ---------------------------------------------------------------------------
   // 5) iOS legacy NSURLConnection / CFURLConnection
@@ -155,8 +138,9 @@ class StacksImpl {
   static Future<RequestResult> requestAndroidHttpUrlConnection(
     RequestConfig cfg,
   ) async {
-    return android_http_urlconnection_stack
-        .requestAndroidHttpUrlConnection(cfg);
+    return android_http_urlconnection_stack.requestAndroidHttpUrlConnection(
+      cfg,
+    );
   }
 
   // ---------------------------------------------------------------------------

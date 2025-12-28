@@ -8,7 +8,9 @@ import '../pinning/stacks/dart_io_pinning.dart';
 Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
   final sw = Stopwatch()..start();
   try {
-    final client = DartIoPinning.shouldPin() ? DartIoPinning.createClient() : io.HttpClient();
+    final client = DartIoPinning.shouldPin()
+        ? DartIoPinning.createClient()
+        : io.HttpClient();
     client.connectionTimeout = cfg.timeout;
 
     final uri = Uri.parse(cfg.url);
@@ -23,7 +25,11 @@ Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
     });
 
     // Only send a body for non-GET/HEAD methods and when a body is provided.
-    final bodyBytes = (cfg.body != null && cfg.body!.isNotEmpty && cfg.method.toUpperCase() != 'GET' && cfg.method.toUpperCase() != 'HEAD')
+    final bodyBytes =
+        (cfg.body != null &&
+            cfg.body!.isNotEmpty &&
+            cfg.method.toUpperCase() != 'GET' &&
+            cfg.method.toUpperCase() != 'HEAD')
         ? utf8.encode(cfg.body!)
         : null;
 
@@ -40,9 +46,18 @@ Future<RequestResult> requestDartIoRaw(RequestConfig cfg) async {
     final body = utf8.decode(bytes, allowMalformed: true);
 
     sw.stop();
-    return RequestResult(status: resp.statusCode, body: body, durationMs: sw.elapsedMilliseconds);
+    return RequestResult(
+      status: resp.statusCode,
+      body: body,
+      durationMs: sw.elapsedMilliseconds,
+    );
   } catch (e) {
     sw.stop();
-    return RequestResult(status: null, body: '', durationMs: sw.elapsedMilliseconds, error: e.toString());
+    return RequestResult(
+      status: null,
+      body: '',
+      durationMs: sw.elapsedMilliseconds,
+      error: e.toString(),
+    );
   }
 }

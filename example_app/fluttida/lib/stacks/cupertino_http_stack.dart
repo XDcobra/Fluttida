@@ -13,7 +13,8 @@ Future<RequestResult> requestCupertinoDefault(RequestConfig cfg) async {
       throw Exception("cupertino_http is iOS-only");
     }
 
-    final session = cupertino_http.CupertinoClient.defaultSessionConfiguration();
+    final session =
+        cupertino_http.CupertinoClient.defaultSessionConfiguration();
 
     final uri = Uri.parse(cfg.url);
     final http.Request r = http.Request(cfg.method, uri);
