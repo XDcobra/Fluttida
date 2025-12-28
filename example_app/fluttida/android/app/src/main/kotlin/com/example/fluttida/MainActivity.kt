@@ -7,6 +7,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.OutputStreamWriter
+import androidx.annotation.Keep
 import java.net.HttpURLConnection
 import java.net.URL
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -41,11 +42,13 @@ class MainActivity : FlutterActivity() {
 		private var instance: MainActivity? = null
 
 		// Called from native C++ (JNI) to surface logs into Flutter UI
+		@Keep
 		@JvmStatic
 		fun sendLogToFlutter(msg: String) {
 			instance?.sendLogToFlutterInstance(msg) ?: android.util.Log.d("FluttidaNativeCurl", msg)
 		}
 
+		@Keep
 		@JvmStatic
 		fun verifyHostPins(host: String, port: Int, spkiCsv: String?, certCsv: String?): Boolean {
 			try {
