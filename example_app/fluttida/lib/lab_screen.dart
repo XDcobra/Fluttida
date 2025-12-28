@@ -503,19 +503,32 @@ class _LabScreenState extends State<LabScreen> {
     super.dispose();
   }
 
-  void _loadBannerAd() {
+  void _loadBannerAd() async {
+    // Check if we can request ads (GDPR requirement)
+    final canRequest = await ConsentInformation.instance.canRequestAds();
+    if (!canRequest) {
+      debugPrint('Cannot request ads - consent not given or not available');
+      return;
+    }
+
+    debugPrint('canRequestAds is true - loading banner ad');
+
+    // GMA SDK handles personalization internally based on consent status
+    final adRequest = AdRequest();
+
     _bannerAd = BannerAd(
       adUnitId: Platform.isAndroid
           ? kAdMobBannerUnitAndroid
           : kAdMobBannerUnitIos,
       size: AdSize.banner,
-      request: const AdRequest(),
+      request: adRequest,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
           if (!mounted) return;
           setState(() => _isBannerReady = true);
         },
         onAdFailedToLoad: (ad, error) {
+          debugPrint('Ad failed to load: ${error.message}');
           ad.dispose();
         },
       ),

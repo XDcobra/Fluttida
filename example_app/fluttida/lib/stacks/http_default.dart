@@ -1,0 +1,50 @@
+import 'dart:async';
+import 'dart:io' as io;
+
+import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
+
+import '../lab_screen.dart';
+import '../pinning/stacks/package_http_pinning.dart';
+
+Future<RequestResult> requestHttpDefault(RequestConfig cfg) async {
+  final sw = Stopwatch()..start();
+  IOClient? client;
+  try {
+    final uri = Uri.parse(cfg.url);
+    final usePinning = PackageHttpPinning.shouldPinDefault();
+
+    final ioHttpClient = usePinning
+        ? PackageHttpPinning.createClient()
+        : io.HttpClient();
+    ioHttpClient.connectionTimeout = cfg.timeout;
+
+    client = IOClient(ioHttpClient);
+
+    final http.Request r = http.Request(cfg.method, uri);
+    r.headers.addAll(cfg.headers);
+    if (cfg.body != null) {
+      r.body = cfg.body!;
+    }
+
+    final streamed = await client.send(r);
+    final resp = await http.Response.fromStream(streamed);
+
+    sw.stop();
+    return RequestResult(
+      status: resp.statusCode,
+      body: resp.body,
+      durationMs: sw.elapsedMilliseconds,
+    );
+  } catch (e) {
+    sw.stop();
+    return RequestResult(
+      status: null,
+      body: '',
+      durationMs: sw.elapsedMilliseconds,
+      error: e.toString(),
+    );
+  } finally {
+    client?.close();
+  }
+}

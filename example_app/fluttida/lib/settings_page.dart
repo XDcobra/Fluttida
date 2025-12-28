@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'pinning_config.dart';
 import 'stacks/stacks_impl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'versions.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -385,6 +387,9 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          // GDPR Consent Card (only shown in release mode for store app)
+          if (!kIsLabApp) _buildConsentCard(),
         ],
       ),
     );
@@ -618,5 +623,252 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildConsentCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Privacy & Ads',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            FutureBuilder<ConsentStatus>(
+              future: ConsentInformation.instance.getConsentStatus(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const CircularProgressIndicator();
+                }
+
+                final status = snapshot.data!;
+                String statusText;
+                Color statusColor;
+
+                switch (status) {
+                  case ConsentStatus.required:
+                    statusText = 'Consent required';
+                    statusColor = Colors.orange;
+                    break;
+                  case ConsentStatus.notRequired:
+                    statusText = 'Consent not required';
+                    statusColor = Colors.grey;
+                    break;
+                  case ConsentStatus.obtained:
+                    statusText = 'Consent obtained';
+                    statusColor = Colors.green;
+                    break;
+                  case ConsentStatus.unknown:
+                    statusText = 'Unknown';
+                    statusColor = Colors.grey;
+                    break;
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('Consent Status: '),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: statusColor),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (status == ConsentStatus.notRequired)
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: Colors.blue.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: Colors.blue,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Not in a regulated region (EU/EEA). '
+                                'No consent form needed.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'You can review or change your privacy settings at any time.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _showConsentForm(context),
+                          icon: const Icon(Icons.privacy_tip, size: 18),
+                          label: const Text('Privacy Settings'),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: () => _resetConsent(context),
+                          child: const Text('Reset'),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showConsentForm(BuildContext context) async {
+    final available = await ConsentInformation.instance
+        .isConsentFormAvailable();
+    if (!available) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No consent form available (region not regulated or already resolved).',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    ConsentForm.loadConsentForm(
+      (ConsentForm consentForm) {
+        consentForm.show((FormError? formError) async {
+          if (formError != null && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: ${formError.message}')),
+            );
+          }
+          if (context.mounted) {
+            setState(() {}); // Refresh to show updated status
+          }
+        });
+      },
+      (FormError formError) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to load form: ${formError.message}')),
+          );
+        }
+      },
+    );
+  }
+
+  Future<void> _resetConsent(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Consent'),
+        content: const Text(
+          'This will reset your privacy preferences. '
+          'You will be asked again to make your choice.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ConsentInformation.instance.reset();
+
+      // Re-run consent update and show form again if required
+      try {
+        final params = ConsentRequestParameters(tagForUnderAgeOfConsent: false);
+        ConsentInformation.instance.requestConsentInfoUpdate(
+          params,
+          () async {
+            final status = await ConsentInformation.instance.getConsentStatus();
+            if (status == ConsentStatus.required &&
+                await ConsentInformation.instance.isConsentFormAvailable()) {
+              ConsentForm.loadConsentForm(
+                (ConsentForm form) {
+                  form.show((FormError? formError) async {
+                    if (context.mounted) setState(() {});
+                  });
+                },
+                (FormError formError) {
+                  debugPrint('Failed to load form: ${formError.message}');
+                },
+              );
+            }
+            if (context.mounted) {
+              setState(() {});
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Consent has been reset')),
+              );
+            }
+          },
+          (FormError error) {
+            debugPrint('Consent update error: ${error.message}');
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Failed to reset consent. Please try again.'),
+                ),
+              );
+            }
+          },
+        );
+      } catch (error, stackTrace) {
+        debugPrint('Exception during consent reset flow: $error');
+        debugPrint('Stack trace: $stackTrace');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to reset consent. Please try again.'),
+            ),
+          );
+        }
+      }
+    }
   }
 }
