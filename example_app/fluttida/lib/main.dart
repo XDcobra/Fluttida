@@ -36,7 +36,41 @@ Future<void> _initializeGlobalOverrides() async {
 /// Runs consent flow and shows form when required.
 /// Returns a Future that completes when the consent flow is finished.
 Future<void> _initConsentAndPersistFlag() async {
-  final completer = Completer<void>();
+  final updateDone = Completer<void>();
+
+  Future<void> showFormIfNeeded() async {
+    final status = await ConsentInformation.instance.getConsentStatus();
+    final formAvailable = await ConsentInformation.instance
+        .isConsentFormAvailable();
+
+    // Treat unknown the same as required: attempt to show form when available.
+    final needsForm =
+        status == ConsentStatus.required || status == ConsentStatus.unknown;
+
+    if (!formAvailable || !needsForm) {
+      debugPrint(
+        'Consent form not shown (status=$status, available=$formAvailable)',
+      );
+      return;
+    }
+
+    final showDone = Completer<void>();
+    ConsentForm.loadConsentForm(
+      (ConsentForm form) {
+        form.show((FormError? formError) {
+          if (formError != null) {
+            debugPrint('Consent form error: ${formError.message}');
+          }
+          if (!showDone.isCompleted) showDone.complete();
+        });
+      },
+      (FormError formError) {
+        debugPrint('Failed to load form: ${formError.message}');
+        if (!showDone.isCompleted) showDone.complete();
+      },
+    );
+    await showDone.future;
+  }
 
   final params = ConsentRequestParameters(
     tagForUnderAgeOfConsent: false,
@@ -50,46 +84,23 @@ Future<void> _initConsentAndPersistFlag() async {
   ConsentInformation.instance.requestConsentInfoUpdate(
     params,
     () async {
-      // Success callback - check and show form if required
-      final status = await ConsentInformation.instance.getConsentStatus();
-      debugPrint('Consent status after update: $status');
-
-      if (status == ConsentStatus.required) {
-        final available = await ConsentInformation.instance
-            .isConsentFormAvailable();
-        if (available) {
-          ConsentForm.loadConsentForm(
-            (ConsentForm form) {
-              form.show((FormError? formError) async {
-                if (formError != null) {
-                  debugPrint('Consent form error: ${formError.message}');
-                }
-                // Complete when form is dismissed
-                completer.complete();
-              });
-            },
-            (FormError formError) {
-              debugPrint('Failed to load form: ${formError.message}');
-              completer.complete(); // Complete even on error
-            },
-          );
-        } else {
-          completer.complete(); // No form available
-        }
-      } else {
-        // Consent not required or already obtained
-        completer.complete();
+      try {
+        await showFormIfNeeded();
+      } finally {
+        if (!updateDone.isCompleted) updateDone.complete();
       }
     },
     (FormError error) {
       debugPrint('Consent info update failed: ${error.message}');
-      completer.complete(); // Complete even on error
+      if (!updateDone.isCompleted) updateDone.complete();
     },
   );
 
-  // Wait for consent flow to complete
-  await completer.future;
-  debugPrint('Consent flow completed');
+  await updateDone.future;
+  final finalStatus = await ConsentInformation.instance.getConsentStatus();
+  debugPrint(
+    'Consent flow completed | status=$finalStatus | canRequestAds=${ConsentInformation.instance.canRequestAds()}',
+  );
 }
 
 class MyApp extends StatelessWidget {
