@@ -27,3 +27,8 @@
 -keepclasseswithmembernames class * {
 	native <methods>;
 }
+
+# Keep Google UMP (User Messaging Platform) SDK classes to avoid stripping consent UI in release
+-keep class com.google.android.ump.** { *; }
+# Keep Google Mobile Ads SDK classes referenced by UMP
+-keep class com.google.android.gms.ads.** { *; }
