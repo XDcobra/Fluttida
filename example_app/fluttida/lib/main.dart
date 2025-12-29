@@ -11,29 +11,35 @@ void main() async {
   // Start UI immediately so the app is usable while consent runs
   runApp(const MyApp());
 
+  // Kick off Mobile Ads SDK initialization immediately (non-blocking)
+  // This ensures the SDK is ready when banner requests are made from initState.
+  try {
+    MobileAds.instance.initialize();
+  } catch (_) {}
+
   // Bootstrap consent + ads + overrides asynchronously with retry/backoff
   _bootstrap();
 }
 
 Future<void> _bootstrap() async {
-  const int maxAttempts = 3;
+  const int maxAttempts = 5;
   Duration backoff = const Duration(seconds: 6);
   bool consentDone = false;
 
   for (int attempt = 1; attempt <= maxAttempts && !consentDone; attempt++) {
-    debugPrint('Consent: attempt $attempt/$maxAttempts');
     try {
-      // Try consent flow with timeout; on timeout or error, we'll retry
-      await _initConsentAndPersistFlag().timeout(const Duration(seconds: 8));
+      await _initConsentAndPersistFlag().timeout(const Duration(seconds: 15));
       consentDone = true;
-      debugPrint('Consent: completed on attempt $attempt');
     } catch (e) {
-      debugPrint('Consent: timeout/error on attempt $attempt: $e');
       if (attempt < maxAttempts) {
         await Future.delayed(backoff);
         backoff *= 2;
       }
     }
+  }
+
+  if (!consentDone) {
+    debugPrint('Consent: giving up after $maxAttempts attempts');
   }
 
   // Initialize MobileAds after consent handling (or after retries)
@@ -69,14 +75,10 @@ Future<void> _initConsentAndPersistFlag() async {
     final formAvailable = await ConsentInformation.instance
         .isConsentFormAvailable();
 
-    // Treat unknown the same as required: attempt to show form when available.
     final needsForm =
         status == ConsentStatus.required || status == ConsentStatus.unknown;
 
     if (!formAvailable || !needsForm) {
-      debugPrint(
-        'Consent form not shown (status=$status, available=$formAvailable)',
-      );
       return;
     }
 
@@ -84,14 +86,10 @@ Future<void> _initConsentAndPersistFlag() async {
     ConsentForm.loadConsentForm(
       (ConsentForm form) {
         form.show((FormError? formError) {
-          if (formError != null) {
-            debugPrint('Consent form error: ${formError.message}');
-          }
           if (!showDone.isCompleted) showDone.complete();
         });
       },
       (FormError formError) {
-        debugPrint('Failed to load form: ${formError.message}');
         if (!showDone.isCompleted) showDone.complete();
       },
     );
@@ -123,13 +121,7 @@ Future<void> _initConsentAndPersistFlag() async {
   );
 
   await updateDone.future;
-  final finalStatus = await ConsentInformation.instance.getConsentStatus();
-  final finalCanRequest = await ConsentInformation.instance.canRequestAds();
-  final finalFormAvailable = await ConsentInformation.instance
-      .isConsentFormAvailable();
-  debugPrint(
-    'Consent flow completed | status=$finalStatus | canRequestAds=$finalCanRequest | formAvailable=$finalFormAvailable',
-  );
+  // ...existing code...
 }
 
 class MyApp extends StatelessWidget {

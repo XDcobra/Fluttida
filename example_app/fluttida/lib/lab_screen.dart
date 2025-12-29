@@ -507,13 +507,10 @@ class _LabScreenState extends State<LabScreen> {
     // Check if we can request ads (GDPR requirement)
     final canRequest = await ConsentInformation.instance.canRequestAds();
     if (!canRequest) {
-      debugPrint('Cannot request ads - consent not given or not available');
+      if (mounted) setState(() => _isBannerReady = false);
       return;
     }
 
-    debugPrint('canRequestAds is true - loading banner ad');
-
-    // GMA SDK handles personalization internally based on consent status
     final adRequest = AdRequest();
 
     _bannerAd = BannerAd(
@@ -525,11 +522,19 @@ class _LabScreenState extends State<LabScreen> {
       listener: BannerAdListener(
         onAdLoaded: (ad) {
           if (!mounted) return;
-          setState(() => _isBannerReady = true);
+          setState(() {
+            _isBannerReady = true;
+          });
         },
         onAdFailedToLoad: (ad, error) {
-          debugPrint('Ad failed to load: ${error.message}');
-          ad.dispose();
+          try {
+            ad.dispose();
+          } catch (_) {}
+          if (!mounted) return;
+          setState(() {
+            _isBannerReady = false;
+            _bannerAd = null;
+          });
         },
       ),
     );
