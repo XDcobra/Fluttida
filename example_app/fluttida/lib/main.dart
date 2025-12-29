@@ -8,15 +8,41 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Run consent flow before initializing ads
-  await _initConsentAndPersistFlag();
-
-  // Initialize MobileAds after consent handling
-  MobileAds.instance.initialize();
-
-  // Conditionally enable global HttpOverrides based on user preference
-  await _initializeGlobalOverrides();
+  // Start UI immediately so the app is usable while consent runs
   runApp(const MyApp());
+
+  // Bootstrap consent + ads + overrides asynchronously with retry/backoff
+  _bootstrap();
+}
+
+Future<void> _bootstrap() async {
+  const int maxAttempts = 3;
+  Duration backoff = const Duration(seconds: 6);
+  bool consentDone = false;
+
+  for (int attempt = 1; attempt <= maxAttempts && !consentDone; attempt++) {
+    debugPrint('Consent: attempt $attempt/$maxAttempts');
+    try {
+      // Try consent flow with timeout; on timeout or error, we'll retry
+      await _initConsentAndPersistFlag().timeout(const Duration(seconds: 8));
+      consentDone = true;
+      debugPrint('Consent: completed on attempt $attempt');
+    } catch (e) {
+      debugPrint('Consent: timeout/error on attempt $attempt: $e');
+      if (attempt < maxAttempts) {
+        await Future.delayed(backoff);
+        backoff *= 2;
+      }
+    }
+  }
+
+  // Initialize MobileAds after consent handling (or after retries)
+  try {
+    await MobileAds.instance.initialize();
+  } catch (_) {}
+
+  // Apply global overrides after UI is up
+  await _initializeGlobalOverrides();
 }
 
 Future<void> _initializeGlobalOverrides() async {
@@ -98,8 +124,11 @@ Future<void> _initConsentAndPersistFlag() async {
 
   await updateDone.future;
   final finalStatus = await ConsentInformation.instance.getConsentStatus();
+  final finalCanRequest = await ConsentInformation.instance.canRequestAds();
+  final finalFormAvailable = await ConsentInformation.instance
+      .isConsentFormAvailable();
   debugPrint(
-    'Consent flow completed | status=$finalStatus | canRequestAds=${ConsentInformation.instance.canRequestAds()}',
+    'Consent flow completed | status=$finalStatus | canRequestAds=$finalCanRequest | formAvailable=$finalFormAvailable',
   );
 }
 
