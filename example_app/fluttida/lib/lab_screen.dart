@@ -83,6 +83,7 @@ class SupportInfo {
 class StackDefinition {
   final String id;
   final String name;
+  final String shortDescription;
   final String description;
   final StackLayer layer;
 
@@ -95,6 +96,7 @@ class StackDefinition {
   const StackDefinition({
     required this.id,
     required this.name,
+    required this.shortDescription,
     required this.description,
     required this.layer,
     required this.support,
@@ -264,7 +266,9 @@ class LabStacks {
       StackDefinition(
         id: "dart_io",
         name: "dart:io HttpClient",
-        description: "Pure Dart network stack (no platform channel).",
+        shortDescription: "Pure Dart HttpClient (no platform channel).",
+        description:
+            "Pure Dart network stack using `dart:io`'s HttpClient. Runs entirely in Dart code and offers low-level control over sockets, timeouts, redirects and certificate handling. Useful for maximum portability and for testing Dart-level behavior (may differ from platform-native TLS/HTTP semantics).",
         layer: StackLayer.dart,
         support: () => const SupportInfo(true),
         run: dartIoRaw,
@@ -272,7 +276,9 @@ class LabStacks {
       StackDefinition(
         id: "http_default",
         name: "package:http (default)",
-        description: "package:http default client.",
+        shortDescription: "High-level package:http client.",
+        description:
+            "High-level `package:http` client using the platform default IO client. Provides convenient ergonomics for common HTTP operations, automatic request/response handling, and easy integration with existing Dart code. Good for quick development but behavior depends on the underlying IO implementation.",
         layer: StackLayer.dart,
         support: () => const SupportInfo(true),
         run: httpDefault,
@@ -280,7 +286,9 @@ class LabStacks {
       StackDefinition(
         id: "http_ioclient",
         name: "package:http via IOClient",
-        description: "Explicit IOClient for package:http.",
+        shortDescription: "package:http using IOClient (dart:io).",
+        description:
+            "`package:http` wired to an explicit `IOClient` backed by `dart:io`. Combines `package:http`'s friendly API with `dart:io`'s predictable low-level behavior (certificates, proxies, connection options), making it easier to reproduce `dart:io`-style networking while keeping the higher-level API.",
         layer: StackLayer.dart,
         support: () => const SupportInfo(true),
         run: httpIoClient,
@@ -290,7 +298,9 @@ class LabStacks {
       StackDefinition(
         id: "ios_nsurlsession",
         name: "cupertino_http (NSURLSession)",
-        description: "Uses NSURLSession via cupertino_http.",
+        shortDescription: "iOS native NSURLSession via cupertino_http.",
+        description:
+            "Uses iOS's native `NSURLSession` via the `cupertino_http` bridge. Runs on the system networking stack (system TLS, background transfers, platform caching and proxy settings). Recommended when you need networking behavior that matches native iOS apps.",
         layer: StackLayer.native,
         support: iosOnly,
         run: cupertinoHttp,
@@ -298,8 +308,9 @@ class LabStacks {
       StackDefinition(
         id: "ios_legacy",
         name: "NSURLConnection / CFURLConnection",
+        shortDescription: "Legacy iOS connection APIs (NSURLConnection).",
         description:
-            "Legacy iOS connection APIs via AppDelegate MethodChannel.",
+            "Legacy iOS networking using `NSURLConnection`/`CFURLConnection` exposed via a platform channel. Included for compatibility testing against older iOS behaviors; lacks many modern features and may differ in TLS negotiation and redirect handling compared to `NSURLSession`.",
         layer: StackLayer.native,
         support: iosOnly,
         run: iosLegacyNsUrlConnection,
@@ -309,8 +320,9 @@ class LabStacks {
       StackDefinition(
         id: "android_httpurlconnection",
         name: "HttpURLConnection (Android)",
+        shortDescription: "Android HttpURLConnection (native).",
         description:
-            "Native Android HttpURLConnection implementation (uses platform channel when available).",
+            "Native Android `HttpURLConnection` implementation via platform channel. Uses the Android system HTTP stack and TLS provider, honoring `networkSecurityConfig`, proxies and platform behavior. Useful for reproducing networking as seen in typical Android apps.",
         layer: StackLayer.native,
         support: androidOnly,
         run: androidHttpUrlConnection,
@@ -318,8 +330,9 @@ class LabStacks {
       StackDefinition(
         id: "android_okhttp",
         name: "OkHttp (Android)",
+        shortDescription: "OkHttp native implementation.",
         description:
-            "Native OkHttp client implementation (uses platform channel when available).",
+            "OkHttp via a native implementation. OkHttp provides efficient connection pooling, HTTP/2 and advanced TLS configuration. Use this to compare performance and TLS behavior with Java/Kotlin Android apps and to test modern Android networking stacks.",
         layer: StackLayer.native,
         support: androidOnly,
         run: androidOkHttp,
@@ -327,7 +340,9 @@ class LabStacks {
       StackDefinition(
         id: "android_cronet",
         name: "Cronet (Android)",
-        description: "Cronet network stack (if available on the device).",
+        shortDescription: "Chromium Cronet (if available).",
+        description:
+            "Chromium's Cronet network stack (when available). Cronet can offer different caching, experimental transport features and TLS behavior compared to system stacks. Useful for testing Chromium-backed networking and for high-performance scenarios.",
         layer: StackLayer.native,
         support: androidOnly,
         run: androidCronet,
@@ -337,7 +352,9 @@ class LabStacks {
       StackDefinition(
         id: "android_ndk_curl",
         name: "Android NDK (libcurl)",
-        description: "Native C/C++ HTTP via libcurl (JNI).",
+        shortDescription: "Native libcurl via JNI (Android).",
+        description:
+            "Native C/C++ HTTP using `libcurl` through JNI. Executes requests at the native layer and may use a different TLS/crypto stack, behavior and performance characteristics. Ideal for comparing native libcurl behavior and advanced pinning or native integration scenarios.",
         layer: StackLayer.ndk,
         support: androidOnly,
         run: androidNativeCurl,
@@ -346,7 +363,9 @@ class LabStacks {
       StackDefinition(
         id: "ios_native_curl",
         name: "iOS Native (libcurl + Secure Transport)",
-        description: "Native C HTTP via libcurl + Secure Transport (FFI).",
+        shortDescription: "Native libcurl + Secure Transport (iOS).",
+        description:
+            "Native HTTP implemented with `libcurl` and Apple's Secure Transport via FFI. Runs HTTP in native code with separate TLS semantics, useful for testing native C implementations, pinning strategies and platform-level differences compared to higher-level APIs.",
         layer: StackLayer.ndk,
         support: iosOnly,
         run: iosNativeCurl,
@@ -356,7 +375,9 @@ class LabStacks {
       StackDefinition(
         id: "webview_headless",
         name: "WebView (headless)",
-        description: "Loads URL in an offstage WebView and reads DOM HTML.",
+        shortDescription: "Offstage WebView that renders pages.",
+        description:
+            "Offstage WebView that loads the URL and exposes rendered DOM/HTML. Behaves like an embedded browser (handles cookies, JS-rendered content and navigation) rather than a raw HTTP client — useful for testing web app behavior and WebView-specific networking quirks.",
         layer: StackLayer.webview,
         support: () => const SupportInfo(true),
         run: webViewHeadless,
@@ -962,9 +983,11 @@ class _LabScreenState extends State<LabScreen> {
                             final hasErr = res?.error != null;
 
                             return ListTile(
-                              enabled: sup.supported && !ctrl.isRunning,
+                              // Tile stays interactive so description opens even if unsupported
+                              enabled: !ctrl.isRunning,
                               leading: Checkbox(
                                 value: isSelected,
+                                // Selection remains disabled for unsupported stacks or while running
                                 onChanged: (!sup.supported || ctrl.isRunning)
                                     ? null
                                     : (v) =>
@@ -988,8 +1011,8 @@ class _LabScreenState extends State<LabScreen> {
                               ),
                               subtitle: Text(
                                 sup.supported
-                                    ? s.description
-                                    : "${s.description}\nNot supported: ${sup.reason}",
+                                    ? s.shortDescription
+                                    : "${s.shortDescription}\nNot supported: ${sup.reason}",
                               ),
                               trailing: _StatusChip(
                                 status: status,
