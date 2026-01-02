@@ -1011,61 +1011,69 @@ class _LabScreenState extends State<LabScreen> {
                                     minChildSize: 0.16,
                                     maxChildSize: 0.9,
                                     builder: (context, scrollController) {
+                                      final sheetWidth =
+                                          MediaQuery.of(context).size.width *
+                                          0.9;
                                       return SingleChildScrollView(
                                         controller: scrollController,
-                                        child: Padding(
-                                          padding: EdgeInsets.only(
-                                            left: 16,
-                                            right: 16,
-                                            top: 16,
-                                            bottom:
-                                                MediaQuery.of(
-                                                  context,
-                                                ).viewInsets.bottom +
-                                                16,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                s.name,
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.titleMedium,
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: sheetWidth,
+                                            child: Padding(
+                                              padding: EdgeInsets.only(
+                                                left: 16,
+                                                right: 16,
+                                                top: 16,
+                                                bottom:
+                                                    MediaQuery.of(
+                                                      context,
+                                                    ).viewInsets.bottom +
+                                                    16,
                                               ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                'Layer: ${s.layer.name}',
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.bodySmall,
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    s.name,
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.titleMedium,
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    'Layer: ${s.layer.name}',
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.bodySmall,
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  SelectableText(
+                                                    s.description,
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.bodyMedium,
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  SelectableText(
+                                                    sup.supported
+                                                        ? 'Supported on this platform ✅'
+                                                        : 'Unsupported 🚫 — ${sup.reason}',
+                                                    style: sup.supported
+                                                        ? Theme.of(
+                                                            context,
+                                                          ).textTheme.bodyMedium
+                                                        : TextStyle(
+                                                            color: Theme.of(
+                                                              context,
+                                                            ).colorScheme.error,
+                                                          ),
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                ],
                                               ),
-                                              const SizedBox(height: 8),
-                                              SelectableText(
-                                                s.description,
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.bodyMedium,
-                                              ),
-                                              const SizedBox(height: 10),
-                                              SelectableText(
-                                                sup.supported
-                                                    ? 'Supported on this platform ✅'
-                                                    : 'Unsupported 🚫 — ${sup.reason}',
-                                                style: sup.supported
-                                                    ? Theme.of(
-                                                        context,
-                                                      ).textTheme.bodyMedium
-                                                    : TextStyle(
-                                                        color: Theme.of(
-                                                          context,
-                                                        ).colorScheme.error,
-                                                      ),
-                                              ),
-                                              const SizedBox(height: 12),
-                                            ],
+                                            ),
                                           ),
                                         ),
                                       );
