@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'lab_screen.dart';
+import 'versions.dart';
 import 'stacks/stacks_impl.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,13 @@ void main() async {
 
   // Kick off Mobile Ads SDK initialization immediately (non-blocking)
   // This ensures the SDK is ready when banner requests are made from initState.
+  // TEMP: output build-time AdMob IDs to logs for CI debug (remove later)
+  try {
+    debugPrint(
+      'BUILD: kIsLabApp=$kIsLabApp kAdMobAppId=$kAdMobAppId kAdMobBannerUnitAndroid=$kAdMobBannerUnitAndroid kAdMobBannerUnitIos=$kAdMobBannerUnitIos',
+    );
+  } catch (_) {}
+
   try {
     MobileAds.instance.initialize();
   } catch (_) {}

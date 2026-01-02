@@ -162,6 +162,20 @@ jobs:
             fi
             echo "✓ iOS App ID replaced successfully"
           fi
+      - name: Debug show AdMob meta-data and lengths
+        env:
+          ADMOB_APP_ID_ANDROID: ${{ secrets.ADMOB_APP_ID_ANDROID }}
+          ADMOB_BANNER_UNIT_ANDROID: ${{ secrets.ADMOB_BANNER_UNIT_ANDROID }}
+          ADMOB_BANNER_UNIT_IOS: ${{ secrets.ADMOB_BANNER_UNIT_IOS }}
+        run: |
+          echo "=== AndroidManifest snippet (post-replace) ==="
+          sed -n '1,240p' android/app/src/main/AndroidManifest.xml || true
+          echo "=== Manifest search for APPLICATION_ID meta-data ==="
+          grep -n 'com.google.android.gms.ads.APPLICATION_ID' android/app/src/main/AndroidManifest.xml || true
+          echo "ADMOB_APP_ID_ANDROID length = ${#ADMOB_APP_ID_ANDROID}"
+          echo "ADMOB_BANNER_UNIT_ANDROID length = ${#ADMOB_BANNER_UNIT_ANDROID}"
+          echo "ADMOB_BANNER_UNIT_IOS length = ${#ADMOB_BANNER_UNIT_IOS}"
+
 
       - name: Decode Android keystore
         env:
