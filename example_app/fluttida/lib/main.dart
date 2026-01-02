@@ -17,21 +17,14 @@ void main() async {
 
   // Kick off Mobile Ads SDK initialization immediately (non-blocking)
   // This ensures the SDK is ready when banner requests are made from initState.
-  // TEMP: output build-time AdMob IDs to logs for CI debug (remove later)
   try {
-    debugPrint(
-      'BUILD: kIsLabApp=$kIsLabApp kAdMobAppId=$kAdMobAppId kAdMobBannerUnitAndroid=$kAdMobBannerUnitAndroid kAdMobBannerUnitIos=$kAdMobBannerUnitIos',
+    final RequestConfiguration config = RequestConfiguration(
+      testDeviceIds: <String>['E6EC72C60550A0F920B2B7FCDFA91129'],
     );
-  } catch (_) {}
 
-  try {
-    await MobileAds.instance.updateRequestConfiguration(
-      RequestConfiguration(testDeviceIds: ['E6EC72C60550A0F920B2B7FCDFA91129']),
-    );
-  } catch (_) {}
+    MobileAds.instance.updateRequestConfiguration(config);
 
-  try {
-    await MobileAds.instance.initialize();
+    MobileAds.instance.initialize();
   } catch (_) {}
 
   // Bootstrap consent + ads + overrides asynchronously with retry/backoff

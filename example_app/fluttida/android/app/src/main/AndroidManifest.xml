@@ -9,7 +9,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
-            android:name="com.example.fluttida.MainActivity"
+            android:name="com.xdcobra.fluttida.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

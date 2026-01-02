@@ -1,4 +1,4 @@
-package com.example.fluttida
+package com.xdcobra.fluttida
 
 import org.json.JSONObject
 

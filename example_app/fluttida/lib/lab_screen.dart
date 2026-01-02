@@ -451,7 +451,7 @@ class _LabScreenState extends State<LabScreen> {
 
   BannerAd? _bannerAd;
   bool _isBannerReady = false;
-  bool get _adsEnabled => kReleaseMode && !kIsLabApp;
+  bool get _adsEnabled => !kIsLabApp;
 
   late final ScrollController _stackListScrollController;
 
@@ -550,6 +550,15 @@ class _LabScreenState extends State<LabScreen> {
       return;
     }
 
+    // Debug diagnostics: log consent + unit + platform
+    debugPrint(
+      'ADS: canRequestAds=$canRequest platform=${Platform.operatingSystem} unit=${Platform.isAndroid ? kAdMobBannerUnitAndroid : kAdMobBannerUnitIos}',
+    );
+
+    // Also log consent status for clarity
+    final status = await ConsentInformation.instance.getConsentStatus();
+    debugPrint('ADS: consentStatus=$status');
+
     final adRequest = AdRequest();
 
     _bannerAd = BannerAd(
@@ -560,12 +569,16 @@ class _LabScreenState extends State<LabScreen> {
       request: adRequest,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
+          debugPrint('ADS: onAdLoaded unit=${ad.adUnitId}');
           if (!mounted) return;
           setState(() {
             _isBannerReady = true;
           });
         },
         onAdFailedToLoad: (ad, error) {
+          debugPrint(
+            'ADS: onAdFailedToLoad unit=${ad.adUnitId} code=${error.code} domain=${error.domain} message=${error.message}',
+          );
           try {
             ad.dispose();
           } catch (_) {}

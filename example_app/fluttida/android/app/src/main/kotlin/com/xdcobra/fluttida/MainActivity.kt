@@ -1,6 +1,6 @@
 @file:Suppress("UNCHECKED_CAST", "DEPRECATION")
 
-package com.example.fluttida
+package com.xdcobra.fluttida
 
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
