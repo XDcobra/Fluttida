@@ -432,6 +432,8 @@ class _LabScreenState extends State<LabScreen> {
   bool _isBannerReady = false;
   bool get _adsEnabled => kReleaseMode && !kIsLabApp;
 
+  late final ScrollController _stackListScrollController;
+
   final _urlController = TextEditingController();
   String _method = "POST";
   final _bodyController = TextEditingController();
@@ -487,6 +489,9 @@ class _LabScreenState extends State<LabScreen> {
       }
     }
 
+    // Scroll controller for the stacks list (so we can show a visible scrollbar)
+    _stackListScrollController = ScrollController();
+
     if (_adsEnabled) {
       _loadBannerAd();
       // Listen for consent completion and reload banner if needed
@@ -509,6 +514,7 @@ class _LabScreenState extends State<LabScreen> {
     _headersController.dispose();
     _bannerAd?.dispose();
     ctrl.dispose();
+    _stackListScrollController.dispose();
     if (_adsEnabled) {
       consentCompleteNotifier.removeListener(_onConsentComplete);
     }
@@ -743,7 +749,7 @@ class _LabScreenState extends State<LabScreen> {
                                   controller: _bodyController,
                                   maxLines: 5,
                                   decoration: const InputDecoration(
-                                    labelText: "Body (optional)",
+                                    labelText: "Body",
                                     hintText: "Raw request body",
                                     border: OutlineInputBorder(),
                                   ),
@@ -939,132 +945,137 @@ class _LabScreenState extends State<LabScreen> {
 
                     // B) Stack list
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: stacks.length,
-                        itemBuilder: (context, i) {
-                          final s = stacks[i];
-                          final sup = s.support();
-                          final isSelected = ctrl.selected.contains(s.id);
-                          final isRunningThis = ctrl.currentStackId == s.id;
+                      child: Scrollbar(
+                        controller: _stackListScrollController,
+                        thumbVisibility: true,
+                        child: ListView.builder(
+                          controller: _stackListScrollController,
+                          itemCount: stacks.length,
+                          itemBuilder: (context, i) {
+                            final s = stacks[i];
+                            final sup = s.support();
+                            final isSelected = ctrl.selected.contains(s.id);
+                            final isRunningThis = ctrl.currentStackId == s.id;
 
-                          final res = ctrl.results[s.id];
-                          final status = res?.status;
-                          final hasErr = res?.error != null;
+                            final res = ctrl.results[s.id];
+                            final status = res?.status;
+                            final hasErr = res?.error != null;
 
-                          return ListTile(
-                            enabled: sup.supported && !ctrl.isRunning,
-                            leading: Checkbox(
-                              value: isSelected,
-                              onChanged: (!sup.supported || ctrl.isRunning)
-                                  ? null
-                                  : (v) =>
-                                        ctrl.toggleSelected(s.id, v ?? false),
-                            ),
-                            title: Row(
-                              children: [
-                                Expanded(child: Text(s.name)),
-                                if (isRunningThis)
-                                  const Padding(
-                                    padding: EdgeInsets.only(left: 8),
-                                    child: SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                            return ListTile(
+                              enabled: sup.supported && !ctrl.isRunning,
+                              leading: Checkbox(
+                                value: isSelected,
+                                onChanged: (!sup.supported || ctrl.isRunning)
+                                    ? null
+                                    : (v) =>
+                                          ctrl.toggleSelected(s.id, v ?? false),
+                              ),
+                              title: Row(
+                                children: [
+                                  Expanded(child: Text(s.name)),
+                                  if (isRunningThis)
+                                    const Padding(
+                                      padding: EdgeInsets.only(left: 8),
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       ),
                                     ),
+                                ],
+                              ),
+                              subtitle: Text(
+                                sup.supported
+                                    ? s.description
+                                    : "${s.description}\nNot supported: ${sup.reason}",
+                              ),
+                              trailing: _StatusChip(
+                                status: status,
+                                error: hasErr,
+                                showNa: s.layer == StackLayer.webview,
+                              ),
+                              onTap: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(16),
+                                    ),
                                   ),
-                              ],
-                            ),
-                            subtitle: Text(
-                              sup.supported
-                                  ? s.description
-                                  : "${s.description}\nNot supported: ${sup.reason}",
-                            ),
-                            trailing: _StatusChip(
-                              status: status,
-                              error: hasErr,
-                              showNa: s.layer == StackLayer.webview,
-                            ),
-                            onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(16),
-                                  ),
-                                ),
-                                builder: (ctx) => DraggableScrollableSheet(
-                                  expand: false,
-                                  initialChildSize: 0.28,
-                                  minChildSize: 0.16,
-                                  maxChildSize: 0.9,
-                                  builder: (context, scrollController) {
-                                    return SingleChildScrollView(
-                                      controller: scrollController,
-                                      child: Padding(
-                                        padding: EdgeInsets.only(
-                                          left: 16,
-                                          right: 16,
-                                          top: 16,
-                                          bottom:
-                                              MediaQuery.of(
-                                                context,
-                                              ).viewInsets.bottom +
-                                              16,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              s.name,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.titleMedium,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Layer: ${s.layer.name}',
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.bodySmall,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            SelectableText(
-                                              s.description,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.bodyMedium,
-                                            ),
-                                            const SizedBox(height: 10),
-                                            SelectableText(
-                                              sup.supported
-                                                  ? 'Supported on this platform ✅'
-                                                  : 'Unsupported 🚫 — ${sup.reason}',
-                                              style: sup.supported
-                                                  ? Theme.of(
-                                                      context,
-                                                    ).textTheme.bodyMedium
-                                                  : TextStyle(
-                                                      color: Theme.of(
+                                  builder: (ctx) => DraggableScrollableSheet(
+                                    expand: false,
+                                    initialChildSize: 0.28,
+                                    minChildSize: 0.16,
+                                    maxChildSize: 0.9,
+                                    builder: (context, scrollController) {
+                                      return SingleChildScrollView(
+                                        controller: scrollController,
+                                        child: Padding(
+                                          padding: EdgeInsets.only(
+                                            left: 16,
+                                            right: 16,
+                                            top: 16,
+                                            bottom:
+                                                MediaQuery.of(
+                                                  context,
+                                                ).viewInsets.bottom +
+                                                16,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                s.name,
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.titleMedium,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Layer: ${s.layer.name}',
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodySmall,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              SelectableText(
+                                                s.description,
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodyMedium,
+                                              ),
+                                              const SizedBox(height: 10),
+                                              SelectableText(
+                                                sup.supported
+                                                    ? 'Supported on this platform ✅'
+                                                    : 'Unsupported 🚫 — ${sup.reason}',
+                                                style: sup.supported
+                                                    ? Theme.of(
                                                         context,
-                                                      ).colorScheme.error,
-                                                    ),
-                                            ),
-                                            const SizedBox(height: 12),
-                                          ],
+                                                      ).textTheme.bodyMedium
+                                                    : TextStyle(
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).colorScheme.error,
+                                                      ),
+                                              ),
+                                              const SizedBox(height: 12),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              );
-                            },
-                          );
-                        },
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ],
