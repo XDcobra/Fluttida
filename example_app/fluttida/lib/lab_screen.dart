@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'main.dart' show consentCompleteNotifier;
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -488,9 +489,17 @@ class _LabScreenState extends State<LabScreen> {
 
     if (_adsEnabled) {
       _loadBannerAd();
+      // Listen for consent completion and reload banner if needed
+      consentCompleteNotifier.addListener(_onConsentComplete);
     }
 
     _loadPinningConfig();
+  }
+
+  void _onConsentComplete() {
+    if (consentCompleteNotifier.value && !_isBannerReady && _bannerAd == null) {
+      _loadBannerAd();
+    }
   }
 
   @override
@@ -500,6 +509,9 @@ class _LabScreenState extends State<LabScreen> {
     _headersController.dispose();
     _bannerAd?.dispose();
     ctrl.dispose();
+    if (_adsEnabled) {
+      consentCompleteNotifier.removeListener(_onConsentComplete);
+    }
     super.dispose();
   }
 

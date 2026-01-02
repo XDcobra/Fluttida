@@ -5,6 +5,9 @@ import 'stacks/stacks_impl.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Notifier that signals when consent is complete and ads can be loaded
+final ValueNotifier<bool> consentCompleteNotifier = ValueNotifier<bool>(false);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -46,6 +49,9 @@ Future<void> _bootstrap() async {
   try {
     await MobileAds.instance.initialize();
   } catch (_) {}
+
+  // Signal that consent is complete so ads can be loaded
+  consentCompleteNotifier.value = true;
 
   // Apply global overrides after UI is up
   await _initializeGlobalOverrides();
