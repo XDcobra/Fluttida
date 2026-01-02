@@ -25,7 +25,13 @@ void main() async {
   } catch (_) {}
 
   try {
-    MobileAds.instance.initialize();
+    await MobileAds.instance.updateRequestConfiguration(
+      RequestConfiguration(testDeviceIds: ['E6EC72C60550A0F920B2B7FCDFA91129']),
+    );
+  } catch (_) {}
+
+  try {
+    await MobileAds.instance.initialize();
   } catch (_) {}
 
   // Bootstrap consent + ads + overrides asynchronously with retry/backoff
