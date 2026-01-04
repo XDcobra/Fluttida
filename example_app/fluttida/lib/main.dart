@@ -19,7 +19,7 @@ void main() async {
   // This ensures the SDK is ready when banner requests are made from initState.
   try {
     final RequestConfiguration config = RequestConfiguration(
-      testDeviceIds: <String>['E6EC72C60550A0F920B2B7FCDFA91129'],
+      testDeviceIds: <String>['5071A5FDBA233F83AEE71564026F08AB'],
     );
 
     MobileAds.instance.updateRequestConfiguration(config);
@@ -34,13 +34,19 @@ void main() async {
 Future<void> _bootstrap() async {
   const int maxAttempts = 5;
   Duration backoff = const Duration(seconds: 6);
-  bool consentDone = false;
 
-  for (int attempt = 1; attempt <= maxAttempts && !consentDone; attempt++) {
+  ConsentStatus? finalStatus;
+
+  for (
+    int attempt = 1;
+    attempt <= maxAttempts && finalStatus == null;
+    attempt++
+  ) {
     try {
-      await _initConsentAndPersistFlag().timeout(const Duration(seconds: 15));
-      consentDone = true;
-    } catch (e) {
+      finalStatus = await _initConsentAndPersistFlag().timeout(
+        const Duration(seconds: 15),
+      );
+    } catch (_) {
       if (attempt < maxAttempts) {
         await Future.delayed(backoff);
         backoff *= 2;
@@ -48,19 +54,16 @@ Future<void> _bootstrap() async {
     }
   }
 
-  if (!consentDone) {
+  if (finalStatus == null) {
     debugPrint('Consent: giving up after $maxAttempts attempts');
+    return;
   }
 
-  // Initialize MobileAds after consent handling (or after retries)
-  try {
-    await MobileAds.instance.initialize();
-  } catch (_) {}
+  if (finalStatus != ConsentStatus.unknown) {
+    consentCompleteNotifier.value = true;
+    debugPrint('Consent complete → ads enabled ($finalStatus)');
+  }
 
-  // Signal that consent is complete so ads can be loaded
-  consentCompleteNotifier.value = true;
-
-  // Apply global overrides after UI is up
   await _initializeGlobalOverrides();
 }
 
@@ -80,7 +83,7 @@ Future<void> _initializeGlobalOverrides() async {
 
 /// Runs consent flow and shows form when required.
 /// Returns a Future that completes when the consent flow is finished.
-Future<void> _initConsentAndPersistFlag() async {
+Future<ConsentStatus> _initConsentAndPersistFlag() async {
   final updateDone = Completer<void>();
 
   Future<void> showFormIfNeeded() async {
@@ -134,7 +137,10 @@ Future<void> _initConsentAndPersistFlag() async {
   );
 
   await updateDone.future;
-  // ...existing code...
+
+  final status = await ConsentInformation.instance.getConsentStatus();
+  debugPrint('Consent: final status=$status');
+  return status;
 }
 
 class MyApp extends StatelessWidget {

@@ -542,25 +542,32 @@ class _LabScreenState extends State<LabScreen> {
     super.dispose();
   }
 
-  void _loadBannerAd() async {
-    // Check if we can request ads (GDPR requirement)
+  Future<void> _loadBannerAd() async {
+    // 1. GDPR / UMP Gate
     final canRequest = await ConsentInformation.instance.canRequestAds();
     if (!canRequest) {
+      debugPrint('ADS: canRequestAds=false → skip ad request');
       if (mounted) setState(() => _isBannerReady = false);
       return;
     }
 
-    // Debug diagnostics: log consent + unit + platform
-    debugPrint(
-      'ADS: canRequestAds=$canRequest platform=${Platform.operatingSystem} unit=${Platform.isAndroid ? kAdMobBannerUnitAndroid : kAdMobBannerUnitIos}',
-    );
-
-    // Also log consent status for clarity
+    // 2. Consent Status
     final status = await ConsentInformation.instance.getConsentStatus();
     debugPrint('ADS: consentStatus=$status');
 
-    final adRequest = AdRequest();
+    // 3. Consent-aware AdRequest
+    final adRequest = AdRequest(
+      nonPersonalizedAds: status != ConsentStatus.obtained,
+    );
 
+    debugPrint(
+      'ADS: loading banner '
+      'platform=${Platform.operatingSystem} '
+      'unit=${Platform.isAndroid ? kAdMobBannerUnitAndroid : kAdMobBannerUnitIos} '
+      'nonPersonalized=${status != ConsentStatus.obtained}',
+    );
+
+    // 4. Banner creation
     _bannerAd = BannerAd(
       adUnitId: Platform.isAndroid
           ? kAdMobBannerUnitAndroid
@@ -571,17 +578,16 @@ class _LabScreenState extends State<LabScreen> {
         onAdLoaded: (ad) {
           debugPrint('ADS: onAdLoaded unit=${ad.adUnitId}');
           if (!mounted) return;
-          setState(() {
-            _isBannerReady = true;
-          });
+          setState(() => _isBannerReady = true);
         },
         onAdFailedToLoad: (ad, error) {
           debugPrint(
-            'ADS: onAdFailedToLoad unit=${ad.adUnitId} code=${error.code} domain=${error.domain} message=${error.message}',
+            'ADS: onAdFailedToLoad '
+            'code=${error.code} '
+            'domain=${error.domain} '
+            'message=${error.message}',
           );
-          try {
-            ad.dispose();
-          } catch (_) {}
+          ad.dispose();
           if (!mounted) return;
           setState(() {
             _isBannerReady = false;
@@ -590,8 +596,9 @@ class _LabScreenState extends State<LabScreen> {
         },
       ),
     );
+
     _isBannerReady = false;
-    _bannerAd!.load();
+    await _bannerAd!.load();
   }
 
   Future<void> _loadPinningConfig() async {
