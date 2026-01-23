@@ -257,7 +257,7 @@ static size_t write_cb_fn(void* ptr, size_t size, size_t nmemb, void* userdata) 
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
+Java_com_xdcobra_fluttida_NativeHttp_nativeHttpRequest(
         JNIEnv *env,
         jobject /* this */,
         jstring jmethod,
@@ -546,7 +546,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
             void* libcrypto = dlopen("libcrypto.so", RTLD_LAZY);
             if (!libssl || !libcrypto) {
                 // Fallback: call Java verifier (existing method) if OpenSSL not available
-                jclass cls = env->FindClass("com/example/fluttida/MainActivity");
+                jclass cls = env->FindClass("com/xdcobra/fluttida/MainActivity");
                 if (cls) {
                     jmethodID mid = env->GetStaticMethodID(cls, "verifyHostPins", "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)Z");
                     if (mid) {
@@ -601,7 +601,7 @@ Java_com_example_fluttida_NativeHttp_nativeHttpRequest(
                 bool have_all = TLS_client_method && SSL_CTX_new && SSL_new && SSL_set_tlsext_host_name && SSL_set_fd && SSL_connect && SSL_free && SSL_CTX_free && SSL_get_peer_certificate && i2d_X509 && X509_get_pubkey && i2d_PUBKEY && X509_free && EVP_PKEY_free && SHA256_fn;
                 if (!have_all) {
                     // Fallback to Java verifier if any symbol missing
-                    jclass cls = env->FindClass("com/example/fluttida/MainActivity");
+                    jclass cls = env->FindClass("com/xdcobra/fluttida/MainActivity");
                     if (cls) {
                         jmethodID mid = env->GetStaticMethodID(cls, "verifyHostPins", "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)Z");
                         if (mid) {
@@ -833,7 +833,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     }
     
     // Cache MainActivity class and sendLogToFlutter static method
-    jclass localClass = env->FindClass("com/example/fluttida/MainActivity");
+    jclass localClass = env->FindClass("com/xdcobra/fluttida/MainActivity");
     if (localClass) {
         g_mainActivityClass = (jclass)env->NewGlobalRef(localClass);
         env->DeleteLocalRef(localClass);
