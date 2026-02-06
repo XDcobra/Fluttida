@@ -23,13 +23,6 @@ String _decodeJsResult(dynamic result) {
             .replaceAll(r'\\t', '\t')
             .replaceAll(r'\\"', '"');
       }
-    } else if (candidate.contains(r'\\u')) {
-      try {
-        final decoded = json.decode('"$candidate"');
-        if (decoded is String) return decoded;
-      } catch (_) {
-        return candidate;
-      }
     }
     return candidate;
   }
