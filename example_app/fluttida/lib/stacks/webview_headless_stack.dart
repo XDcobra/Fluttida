@@ -34,6 +34,12 @@ bool _isPlaceholderHtml(String html) {
   return normalized == '<html><head></head><body></body></html>';
 }
 
+/// Waits for the page to finish loading using a NavigationDelegate.
+/// 
+/// Note: This function sets a new NavigationDelegate on the controller,
+/// which may override any existing delegate. Additionally, if the page
+/// has already finished loading before this function is called, it will
+/// wait for the full timeout duration unnecessarily.
 Future<void> _waitForPageLoad(
   WebViewController controller,
   Duration timeout,
@@ -103,7 +109,7 @@ Future<RequestResult> requestWebViewHeadlessWith(
         );
         loaded = true;
       }
-      } catch (e) {
+    } catch (e) {
       // Expected: LoadRequestMethod may not exist in some webview versions
       // ignore: avoid_print
       print('WebView loadRequest with method failed: $e');
@@ -141,7 +147,6 @@ Future<RequestResult> requestWebViewHeadlessWith(
         // ignore: avoid_print
         print('WebView HTML retrieval attempt ${i + 1} failed: $e');
       }
-      if (html.isNotEmpty && !_isPlaceholderHtml(html)) break;
       await Future.delayed(const Duration(milliseconds: 300));
     }
 
