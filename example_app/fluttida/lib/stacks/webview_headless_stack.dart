@@ -35,6 +35,9 @@ bool _isPlaceholderHtml(String html) {
 }
 
 /// Waits for the page to finish loading using a NavigationDelegate.
+///
+/// [controller] is the WebViewController to monitor for page load events.
+/// [timeout] is the maximum duration to wait for the page to finish loading.
 /// 
 /// Note: This function sets a new NavigationDelegate on the controller,
 /// which may override any existing delegate. Additionally, if the page
