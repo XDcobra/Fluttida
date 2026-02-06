@@ -6,6 +6,63 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../lab_screen.dart';
 
+String _decodeJsResult(dynamic result) {
+  if (result == null) return '';
+  if (result is String) {
+    var candidate = result;
+    if ((candidate.startsWith('"') && candidate.endsWith('"')) ||
+        candidate.contains(r'\\u') ||
+        candidate.contains(r'\\n') ||
+        candidate.contains(r'\\t')) {
+      try {
+        final decoded = json.decode(candidate);
+        if (decoded is String) return decoded;
+      } catch (_) {
+        return candidate
+            .replaceAll(r'\\n', '\n')
+            .replaceAll(r'\\t', '\t')
+            .replaceAll(r'\\"', '"');
+      }
+    } else if (candidate.contains(r'\\u')) {
+      try {
+        final decoded = json.decode('"$candidate"');
+        if (decoded is String) return decoded;
+      } catch (_) {
+        return candidate;
+      }
+    }
+    return candidate;
+  }
+  return result.toString();
+}
+
+bool _isPlaceholderHtml(String html) {
+  final normalized = html.trim().toLowerCase();
+  return normalized == '<html><head></head><body></body></html>';
+}
+
+Future<void> _waitForPageLoad(
+  WebViewController controller,
+  Duration timeout,
+) async {
+  final completer = Completer<void>();
+  controller.setNavigationDelegate(
+    NavigationDelegate(
+      onPageFinished: (_) {
+        if (!completer.isCompleted) completer.complete();
+      },
+      onWebResourceError: (_) {
+        if (!completer.isCompleted) completer.complete();
+      },
+    ),
+  );
+  try {
+    await completer.future.timeout(timeout);
+  } catch (_) {
+    // Timeout means we'll continue with best-effort DOM extraction.
+  }
+}
+
 Future<RequestResult> requestWebViewHeadless(RequestConfig cfg) async {
   final sw = Stopwatch()..start();
   sw.stop();
@@ -53,7 +110,7 @@ Future<RequestResult> requestWebViewHeadlessWith(
         );
         loaded = true;
       }
-    } catch (e) {
+      } catch (e) {
       // Expected: LoadRequestMethod may not exist in some webview versions
       // ignore: avoid_print
       print('WebView loadRequest with method failed: $e');
@@ -61,55 +118,37 @@ Future<RequestResult> requestWebViewHeadlessWith(
 
     if (!loaded) await controller.loadRequest(uri);
 
-    String html = "";
+    await _waitForPageLoad(controller, cfg.timeout);
+
+    String html = '';
     for (int i = 0; i < 10; i++) {
       try {
         final result = await controller.runJavaScriptReturningResult(
           'document.documentElement.outerHTML',
         );
 
-        if (result is String) {
-          var candidate = result;
-          if ((candidate.startsWith('"') && candidate.endsWith('"')) ||
-              candidate.contains(r'\\u') ||
-              candidate.contains(r'\\n') ||
-              candidate.contains(r'\\t')) {
-            try {
-              final decoded = json.decode(candidate);
-              if (decoded is String) {
-                html = decoded;
-              } else {
-                html = candidate;
-              }
-            } catch (_) {
-              html = candidate
-                  .replaceAll(r'\\n', '\n')
-                  .replaceAll(r'\\t', '\t')
-                  .replaceAll(r'\"', '"');
-            }
-          } else if (candidate.contains(r'\\u')) {
-            try {
-              final decoded = json.decode('"$candidate"');
-              if (decoded is String) {
-                html = decoded;
-              } else {
-                html = candidate;
-              }
-            } catch (_) {
-              html = candidate;
-            }
-          } else {
-            html = candidate;
-          }
-        } else {
-          html = result.toString();
+        html = _decodeJsResult(result);
+
+        final readyState = _decodeJsResult(
+          await controller.runJavaScriptReturningResult('document.readyState'),
+        );
+        final bodyInner = _decodeJsResult(
+          await controller.runJavaScriptReturningResult(
+            'document.body ? document.body.innerHTML : ""',
+          ),
+        );
+
+        final htmlLooksEmpty =
+            html.isEmpty || _isPlaceholderHtml(html) || bodyInner.trim().isEmpty;
+        if (readyState == 'complete' && !htmlLooksEmpty) {
+          break;
         }
       } catch (e) {
         // Expected: HTML may not be ready during page load
         // ignore: avoid_print
         print('WebView HTML retrieval attempt ${i + 1} failed: $e');
       }
-      if (html.isNotEmpty) break;
+      if (html.isNotEmpty && !_isPlaceholderHtml(html)) break;
       await Future.delayed(const Duration(milliseconds: 300));
     }
 
