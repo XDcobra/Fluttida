@@ -3,11 +3,6 @@ name: iOS unsigned build (.ipa)
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
-    paths-ignore:
-      - 'README.md'
-      - '**/README.md'
-      - '**/README.*'
 
 jobs:
   build-ios-unsigned:
