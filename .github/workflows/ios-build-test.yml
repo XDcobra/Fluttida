@@ -71,10 +71,9 @@ jobs:
             exit 1
           fi
 
-      - name: Pin CocoaPods to 1.15.x (compatible with Flutter's podhelper)
+      - name: Ensure latest CocoaPods
         run: |
-          echo "Pinning CocoaPods to 1.15.4 to avoid podhelper API mismatch"
-          sudo gem install cocoapods -v 1.15.4 || true
+          sudo gem install cocoapods
           pod --version
 
       - name: Install CocoaPods
