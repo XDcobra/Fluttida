@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'lab_screen.dart';
-import 'versions.dart';
+import 'ad_config.dart';
 import 'stacks/stacks_impl.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +15,23 @@ void main() async {
   // Start UI immediately so the app is usable while consent runs
   runApp(const MyApp());
 
+  // Bootstrap consent + ads + overrides asynchronously with retry/backoff
+  _bootstrap();
+}
+
+Future<void> _bootstrap() async {
+  final adConfig = await AdConfig.load();
+  if (adConfig.adsEnabled) {
+    _initializeMobileAds();
+    await _initConsentWithRetry();
+  } else {
+    debugPrint('ADS: disabled via BuildConfig.ADS_ENABLED');
+  }
+
+  await _initializeGlobalOverrides();
+}
+
+void _initializeMobileAds() {
   // Kick off Mobile Ads SDK initialization immediately (non-blocking)
   // This ensures the SDK is ready when banner requests are made from initState.
   try {
@@ -26,12 +43,9 @@ void main() async {
 
     MobileAds.instance.initialize();
   } catch (_) {}
-
-  // Bootstrap consent + ads + overrides asynchronously with retry/backoff
-  _bootstrap();
 }
 
-Future<void> _bootstrap() async {
+Future<void> _initConsentWithRetry() async {
   const int maxAttempts = 5;
   Duration backoff = const Duration(seconds: 6);
 
@@ -63,8 +77,6 @@ Future<void> _bootstrap() async {
     consentCompleteNotifier.value = true;
     debugPrint('Consent complete → ads enabled ($finalStatus)');
   }
-
-  await _initializeGlobalOverrides();
 }
 
 Future<void> _initializeGlobalOverrides() async {

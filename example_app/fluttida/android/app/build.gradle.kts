@@ -15,6 +15,9 @@ if (keystorePropertiesFile.exists()) {
     FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
 }
 
+val admobAppIdAndroid = (project.findProperty("ADMOB_APP_ID_ANDROID") as String?)?.trim()
+val admobBannerUnitAndroid = (project.findProperty("ADMOB_BANNER_UNIT_ANDROID") as String?)?.trim()
+
 android {
     namespace = "com.xdcobra.fluttida"
     compileSdk = flutter.compileSdkVersion
@@ -27,6 +30,10 @@ android {
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     defaultConfig {
@@ -52,23 +59,52 @@ android {
     }
 
     buildTypes {
-        release {
+        getByName("debug") {
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+            buildConfigField("boolean", "ADS_ENABLED", "false")
+            buildConfigField(
+                "String",
+                "ADMOB_BANNER_UNIT_ANDROID",
+                "\"ca-app-pub-3940256099942544/6300978111\""
+            )
+        }
+        getByName("profile") {
+            initWith(getByName("debug"))
+        }
+        getByName("release") {
+            val isReleaseTask = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+            if (isReleaseTask && admobAppIdAndroid.isNullOrBlank()) {
+                throw GradleException("ADMOB_APP_ID_ANDROID is required for release builds")
+            }
+            if (isReleaseTask && admobBannerUnitAndroid.isNullOrBlank()) {
+                throw GradleException("ADMOB_BANNER_UNIT_ANDROID is required for release builds")
+            }
+
+            manifestPlaceholders["admobAppId"] = admobAppIdAndroid
+                ?: "ca-app-pub-3940256099942544~3347511713"
+            buildConfigField("boolean", "ADS_ENABLED", "true")
+            buildConfigField(
+                "String",
+                "ADMOB_BANNER_UNIT_ANDROID",
+                "\"${admobBannerUnitAndroid ?: "ca-app-pub-3940256099942544/6300978111"}\""
+            )
+
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
                 // Fallback to debug signing so local `flutter run --release` still works without a keystore
                 signingConfigs.getByName("debug")
             }
-                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-                // Ensure native code is built and R8 keeps JNI symbols
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Ensure native code is built and R8 keeps JNI symbols
         }
     }
 
-        externalNativeBuild {
-            cmake {
-                path = file("src/main/cpp/CMakeLists.txt")
-            }
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
         }
+    }
 }
 
 flutter {

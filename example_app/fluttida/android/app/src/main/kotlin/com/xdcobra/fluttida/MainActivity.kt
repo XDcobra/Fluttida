@@ -2,6 +2,8 @@
 
 package com.xdcobra.fluttida
 
+import com.xdcobra.fluttida.BuildConfig
+
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -129,6 +131,20 @@ class MainActivity : FlutterActivity() {
 
 		MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
 			when (call.method) {
+				"getBuildInfo" -> {
+					val payload: Map<String, Any?> = mapOf(
+						"versionName" to BuildConfig.VERSION_NAME,
+						"buildNumber" to BuildConfig.VERSION_CODE,
+					)
+					result.success(payload)
+				}
+				"getAdConfig" -> {
+					val payload: Map<String, Any?> = mapOf(
+						"adsEnabled" to BuildConfig.ADS_ENABLED,
+						"admobBannerUnitAndroid" to BuildConfig.ADMOB_BANNER_UNIT_ANDROID,
+					)
+					result.success(payload)
+				}
 				"setGlobalPinningConfig" -> {
 					val args = call.arguments as? Map<*, *>
 					val pin = args?.get("pinning") as? Map<*, *>

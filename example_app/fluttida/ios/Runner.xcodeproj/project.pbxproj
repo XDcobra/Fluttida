@@ -16,6 +16,7 @@
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		E0C1D2E41E00000000400000 /* libcurl.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0C1D2E31E00000000400000 /* libcurl.xcframework */; };
 		E0C1D2E61E00000000400001 /* NativeHttp.mm in Sources */ = {isa = PBXBuildFile; fileRef = E0C1D2E51E00000000400001 /* NativeHttp.mm */; };
+		E0C1D3411E00000000400033 /* LegacyCFURLConnection.m in Sources */ = {isa = PBXBuildFile; fileRef = E0C1D3401E00000000400032 /* LegacyCFURLConnection.m */; };
 		E0C1D3301E00000000400030 /* cacert.pem in Resources */ = {isa = PBXBuildFile; fileRef = E0C1D3311E00000000400031 /* cacert.pem */; };
         
         
@@ -62,6 +63,8 @@
 		E0C1D2E31E00000000400000 /* libcurl.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libcurl.xcframework; path = Frameworks/libcurl.xcframework; sourceTree = "<group>"; };
 		E0C1D2E51E00000000400001 /* NativeHttp.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = NativeHttp.mm; sourceTree = "<group>"; };
 		E0C1D2E71E00000000400002 /* NativeHttp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NativeHttp.h; sourceTree = "<group>"; };
+		E0C1D3401E00000000400032 /* LegacyCFURLConnection.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LegacyCFURLConnection.m; sourceTree = "<group>"; };
+		E0C1D3421E00000000400034 /* LegacyCFURLConnection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LegacyCFURLConnection.h; sourceTree = "<group>"; };
         
         
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -135,6 +138,8 @@
                 
 				E0C1D2E51E00000000400001 /* NativeHttp.mm */,
 				E0C1D2E71E00000000400002 /* NativeHttp.h */,
+				E0C1D3401E00000000400032 /* LegacyCFURLConnection.m */,
+				E0C1D3421E00000000400034 /* LegacyCFURLConnection.h */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -290,6 +295,7 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				E0C1D2E61E00000000400001 /* NativeHttp.mm in Sources */,
+				E0C1D3411E00000000400033 /* LegacyCFURLConnection.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

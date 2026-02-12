@@ -10,6 +10,10 @@ on:
   workflow_dispatch:
   push:
     branches: ["main"]
+    paths-ignore:
+      - 'README.md'
+      - '**/README.md'
+      - '**/README.*'
 
 jobs:
   build-android-unsigned:
@@ -22,6 +26,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.ADMOB_BANNER_UNIT_ANDROID }}" ]; then
+            echo "Missing secret: ADMOB_BANNER_UNIT_ANDROID" >&2
+            exit 1
+          fi
 
       - name: Derive version (main branch)
         id: version
@@ -55,12 +66,13 @@ jobs:
         run: flutter pub get
 
       - name: Build Android APK (release, unsigned)
+        env:
+          ORG_GRADLE_PROJECT_ADMOB_BANNER_UNIT_ANDROID: ${{ secrets.ADMOB_BANNER_UNIT_ANDROID }}
+          ORG_GRADLE_PROJECT_ADS_ENABLED: 'true'
         run: |
           flutter build apk --release \
             --build-name="${{ steps.version.outputs.version_name }}" \
-            --build-number="${{ steps.version.outputs.build_number }}" \
-            --dart-define=APP_VERSION="${{ steps.version.outputs.version_name }}" \
-            --dart-define=APP_BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
+            --build-number="${{ steps.version.outputs.build_number }}"
 
       - name: Gather APK artifacts
         run: |

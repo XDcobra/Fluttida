@@ -9,7 +9,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter/foundation.dart';
 import 'stacks/stacks_impl.dart';
-import 'versions.dart';
+import 'ad_config.dart';
+import 'build_info.dart';
 import 'pinning_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_page.dart';
@@ -451,7 +452,10 @@ class _LabScreenState extends State<LabScreen> {
 
   BannerAd? _bannerAd;
   bool _isBannerReady = false;
-  bool get _adsEnabled => !kIsLabApp;
+  bool _adsEnabled = false;
+  bool _consentListenerAttached = false;
+  String? _bannerUnit;
+  String _versionLabel = 'v0.0.0 (build 0)';
 
   late final ScrollController _stackListScrollController;
 
@@ -513,13 +517,34 @@ class _LabScreenState extends State<LabScreen> {
     // Scroll controller for the stacks list (so we can show a visible scrollbar)
     _stackListScrollController = ScrollController();
 
+    _loadAdConfig();
+    _loadBuildInfo();
+
+    _loadPinningConfig();
+  }
+
+  Future<void> _loadBuildInfo() async {
+    final info = await BuildInfo.load();
+    if (!mounted) return;
+    setState(() {
+      _versionLabel = 'v${info.versionName} (build ${info.buildNumber})';
+    });
+  }
+
+  Future<void> _loadAdConfig() async {
+    final config = await AdConfig.load();
+    if (!mounted) return;
+    setState(() {
+      _adsEnabled = config.adsEnabled;
+      _bannerUnit = config.bannerUnit;
+    });
+
     if (_adsEnabled) {
       _loadBannerAd();
       // Listen for consent completion and reload banner if needed
       consentCompleteNotifier.addListener(_onConsentComplete);
+      _consentListenerAttached = true;
     }
-
-    _loadPinningConfig();
   }
 
   void _onConsentComplete() {
@@ -536,7 +561,7 @@ class _LabScreenState extends State<LabScreen> {
     _bannerAd?.dispose();
     ctrl.dispose();
     _stackListScrollController.dispose();
-    if (_adsEnabled) {
+    if (_consentListenerAttached) {
       consentCompleteNotifier.removeListener(_onConsentComplete);
     }
     super.dispose();
@@ -560,18 +585,23 @@ class _LabScreenState extends State<LabScreen> {
       nonPersonalizedAds: status != ConsentStatus.obtained,
     );
 
+    final adUnitId = _bannerUnit;
+    if (adUnitId == null || adUnitId.isEmpty) {
+      debugPrint('ADS: missing ad unit id → skip ad request');
+      if (mounted) setState(() => _isBannerReady = false);
+      return;
+    }
+
     debugPrint(
       'ADS: loading banner '
       'platform=${Platform.operatingSystem} '
-      'unit=${Platform.isAndroid ? kAdMobBannerUnitAndroid : kAdMobBannerUnitIos} '
+      'unit=$adUnitId '
       'nonPersonalized=${status != ConsentStatus.obtained}',
     );
 
     // 4. Banner creation
     _bannerAd = BannerAd(
-      adUnitId: Platform.isAndroid
-          ? kAdMobBannerUnitAndroid
-          : kAdMobBannerUnitIos,
+      adUnitId: adUnitId,
       size: AdSize.banner,
       request: adRequest,
       listener: BannerAdListener(
@@ -700,7 +730,7 @@ class _LabScreenState extends State<LabScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 2.0),
                     child: Text(
-                      'v$kAppVersion (build $kBuildNumber)',
+                      _versionLabel,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
