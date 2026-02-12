@@ -74,8 +74,8 @@ jobs:
       # workaround for CocoaPods issues with Flutter 3.38
       - name: Install CocoaPods (Flutter 3.38 compatible)
         run: |
-          sudo gem uninstall cocoapods -aIx || true
-          sudo gem install cocoapods -v 1.15.4
+          sudo gem update --system
+          sudo gem install cocoapods -v 1.15.4 --no-document
           pod --version
 
       - name: Install CocoaPods
