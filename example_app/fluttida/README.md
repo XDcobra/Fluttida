@@ -11,6 +11,11 @@
     <img src="https://img.shields.io/badge/Frida-17.x-red?style=flat&logo=frida" alt="Frida Version" />
     <img src="https://img.shields.io/badge/Platform-iOS%20%7C%20Android-lightgrey?style=flat" alt="Platform" />
   </p>
+  <p>
+    <a href="https://play.google.com/store/apps/details?id=com.xdcobra.fluttida" target="_blank" rel="noopener">
+      <img alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="40" />
+    </a>
+  </p>
 </div>
 
 
