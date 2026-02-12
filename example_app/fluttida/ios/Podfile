@@ -1,6 +1,6 @@
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
-platform :ios, '12.0'
+platform :ios, '13.0'
 
 # CocoaPods analytics is synchronous and can slow down flutter builds.
 project 'Runner', {

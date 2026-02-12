@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.homepage     = 'https://example.com/FluttidaLibs'
   s.license      = { :type => 'MIT' }
   s.author       = { 'Fluttida' => 'noreply@example.com' }
-  s.platform     = :ios, '12.0'
+  s.platform     = :ios, '13.0'
   s.source       = { :path => '.' }
 
   # Vendored xcframeworks (paths are relative to this podspec directory)
