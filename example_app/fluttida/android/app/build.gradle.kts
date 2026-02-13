@@ -61,7 +61,7 @@ android {
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
-            buildConfigField("boolean", "ADS_ENABLED", "true")
+            buildConfigField("boolean", "ADS_ENABLED", "false")
             buildConfigField(
                 "String",
                 "ADMOB_BANNER_UNIT_ANDROID",
