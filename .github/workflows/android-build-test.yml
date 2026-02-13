@@ -31,6 +31,10 @@ jobs:
 
       - name: Validate required secrets
         run: |
+          if [ -z "${{ secrets.ADMOB_APP_ID_ANDROID }}" ]; then
+            echo "Missing secret: ADMOB_APP_ID_ANDROID" >&2
+            exit 1
+          fi
           if [ -z "${{ secrets.ADMOB_BANNER_UNIT_ANDROID }}" ]; then
             echo "Missing secret: ADMOB_BANNER_UNIT_ANDROID" >&2
             exit 1
@@ -69,6 +73,7 @@ jobs:
 
       - name: Build Android APK (release, unsigned)
         env:
+          ORG_GRADLE_PROJECT_ADMOB_APP_ID_ANDROID: ${{ secrets.ADMOB_APP_ID_ANDROID }}
           ORG_GRADLE_PROJECT_ADMOB_BANNER_UNIT_ANDROID: ${{ secrets.ADMOB_BANNER_UNIT_ANDROID }}
           ORG_GRADLE_PROJECT_ADS_ENABLED: 'true'
         run: |
