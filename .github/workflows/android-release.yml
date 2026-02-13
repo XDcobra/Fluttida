@@ -192,7 +192,7 @@ jobs:
             example_app/fluttida/build/app/outputs/bundle/release/*.aab
             example_app/fluttida/build/app/outputs/flutter-apk/*.apk
 
-  create-release:
+  publish-to-play:
     runs-on: ubuntu-latest
     needs: build-android-signed
     steps:
@@ -207,57 +207,66 @@ jobs:
           name: fluttida-android-signed-${{ needs.build-android-signed.outputs.version_name }}+${{ needs.build-android-signed.outputs.build_number }}
           path: ./artifacts
 
-      - name: Prepare assets and compute SHA-256
-        id: prep_assets
+      - name: Decode Android keystore
+        if: always()
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p android/app
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+
+      - name: Write key.properties
+        if: always()
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cat > android/key.properties <<EOF
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          storeFile=app/release.keystore
+          EOF
+
+      - name: Prepare Fastlane JSON key
+        env:
+          FASTLANE_JSON_KEY: ${{ secrets.FASTLANE_JSON_KEY }}
         run: |
           set -euo pipefail
-          VERSION_NAME="${{ needs.build-android-signed.outputs.version_name }}"
-
-          AAB_SRC=$(find artifacts -type f -name "*.aab" | head -n 1)
-          APK_SRC=$(find artifacts -type f -name "*.apk" | head -n 1)
-
-          if [ -z "$AAB_SRC" ] || [ -z "$APK_SRC" ]; then
-            echo "Missing built artifacts (.aab/.apk) under artifacts/"
-            ls -la artifacts || true
+          if [ -z "${FASTLANE_JSON_KEY:-}" ]; then
+            echo "Missing secret: FASTLANE_JSON_KEY" >&2
             exit 1
           fi
 
-          AAB_OUT="artifacts/fluttida_${VERSION_NAME}.aab"
-          APK_OUT="artifacts/fluttida_${VERSION_NAME}.apk"
+          mkdir -p example_app/fluttida/android/fastlane
+          printf '%s' "$FASTLANE_JSON_KEY" > example_app/fluttida/android/fastlane/fastlane.json
+          chmod 600 example_app/fluttida/android/fastlane/fastlane.json
 
-          cp "$AAB_SRC" "$AAB_OUT"
-          cp "$APK_SRC" "$APK_OUT"
-
-          sha256sum "$AAB_OUT" | tee "$AAB_OUT.sha256"
-          sha256sum "$APK_OUT" | tee "$APK_OUT.sha256"
-
-          echo "checksums<<EOF" >> "$GITHUB_OUTPUT"
-          sha256sum "$AAB_OUT"
-          sha256sum "$APK_OUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Determine tag name
-        id: determine_tag
+      - name: Upload to Play Store (Closed Testing)
+        env:
+          VERSION_CODE: ${{ needs.build-android-signed.outputs.build_number }}
+          VERSION_NAME: ${{ needs.build-android-signed.outputs.version_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          cd example_app/fluttida/android
+          if [ -f ./Gemfile ]; then
+            bundle install
+            bundle exec fastlane closed_testing
           else
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            fastlane closed_testing
           fi
 
-      - name: Create GitHub Release and upload artifacts
-        uses: softprops/action-gh-release@v2
+      - name: Cleanup keystore
+        if: always()
+        run: |
+          rm -f android/app/release.keystore
+          rm -f android/key.properties
+
+      - name: Upload signed artifacts (for audit)
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.determine_tag.outputs.tag }}
-          name: "fluttida_${{ needs.build-android-signed.outputs.version_name }}"
-          body: |
-            Automated signed Android build for tag ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          files: |
-            artifacts/fluttida_${{ needs.build-android-signed.outputs.version_name }}.aab
-            artifacts/fluttida_${{ needs.build-android-signed.outputs.version_name }}.apk
-            artifacts/fluttida_${{ needs.build-android-signed.outputs.version_name }}.aab.sha256
-            artifacts/fluttida_${{ needs.build-android-signed.outputs.version_name }}.apk.sha256
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: fluttida-android-signed-${{ needs.build-android-signed.outputs.version_name }}+${{ needs.build-android-signed.outputs.build_number }}
+          path: |
+            example_app/fluttida/build/app/outputs/bundle/release/*.aab
+            example_app/fluttida/build/app/outputs/flutter-apk/*.apk

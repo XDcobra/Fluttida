@@ -12,6 +12,7 @@
 .swiftpm/
 migrate_working_dir/
 tools/
+app-fluttida-*.json
 
 # IntelliJ related
 *.iml
