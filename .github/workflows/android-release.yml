@@ -5,7 +5,7 @@
 # 5. Uploads signed artifacts as workflow artifacts
 # 6. Creates GitHub Release and uploads signed artifacts to the release
 
-name: Android signed build (Play Store ready)
+name: Android Play Store release
 
 on:
   # Manual trigger via Actions UI

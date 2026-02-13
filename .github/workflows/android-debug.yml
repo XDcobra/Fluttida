@@ -1,3 +1,5 @@
+# This workflow builds a debug-mode Android App Bundle (.aab) and APK (.apk)
+# suitable for public release via GitHub Releases. Ads are disabled in this build.
 name: Android debug release (public GitHub release, no ads)
 
 on:

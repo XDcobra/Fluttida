@@ -4,7 +4,7 @@
 # 3. Builds unsigned Android APK (.apk)
 # 4. Uploads unsigned APK as workflow artifact
 
-name: Android unsigned build (.apk)
+name: Android unsigned test build (.apk)
 
 on:
   workflow_dispatch:

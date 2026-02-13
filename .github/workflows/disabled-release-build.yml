@@ -3,7 +3,7 @@
 # Once I can test this properly, I'll re-enable this workflow.
 # related github issue: https://github.com/flutter/flutter/issues/169272
 
-name: Release (unsigned APK + IPA)
+name: DISABLED Release (unsigned APK + IPA)
 
 # Triggers
 # This workflow is manual-only by default. Use the Actions UI -> "Run workflow"
