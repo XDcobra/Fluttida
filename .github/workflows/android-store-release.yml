@@ -189,6 +189,7 @@ jobs:
           path: |
             example_app/fluttida/build/app/outputs/bundle/release/*.aab
             example_app/fluttida/build/app/outputs/flutter-apk/*.apk
+            example_app/fluttida/build/app/outputs/mapping/**/mapping*.txt
 
   publish-to-play:
     runs-on: ubuntu-latest
