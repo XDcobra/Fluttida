@@ -3,10 +3,6 @@ default_platform(:android)
 platform :android do
   desc "Upload signed AAB/APK to Play closed track"
   lane :deploy_closed do
-    json_key = '/tmp/google-play.json'
-    # Ensure we search from the repository root so Fastlane's working
-    # directory (which may be the `fastlane` folder) doesn't hide the
-    # downloaded `./artifacts` directory.
     repo_root = File.expand_path('..', __dir__)
     aab = Dir[File.join(repo_root, 'artifacts', '**', '*.aab')].first
     apk = Dir[File.join(repo_root, 'artifacts', '**', '*.apk')].first
@@ -15,35 +11,34 @@ platform :android do
     version_name = ENV['VERSION_NAME'] || ENV['ORG_GRADLE_PROJECT_VERSION_NAME']
     release_name = version_code && version_name ? "#{version_code} (#{version_name})" : nil
 
-    # try to find mapping file inside artifacts (if the build uploaded it)
     mapping = Dir[File.join(repo_root, 'artifacts', '**', 'mapping*.txt')].first
+
+    validate_only = ENV['VALIDATE_ONLY'] == 'true'
 
     if aab
       params = {
-        track: 'closed',
         aab: aab,
-        json_key: json_key,
-        release_name: release_name,
+        track: 'alpha',
+        validate_only: validate_only,
         skip_upload_metadata: true,
         skip_upload_images: true,
         skip_upload_screenshots: true,
         skip_upload_changelogs: true
       }
       params[:mapping] = mapping if mapping
-      upload_to_play_store(**params)
+      supply(**params)
     elsif apk
       params = {
-        track: 'closed',
         apk: apk,
-        json_key: json_key,
-        release_name: release_name,
+        track: 'alpha',
+        validate_only: validate_only,
         skip_upload_metadata: true,
         skip_upload_images: true,
         skip_upload_screenshots: true,
         skip_upload_changelogs: true
       }
       params[:mapping] = mapping if mapping
-      upload_to_play_store(**params)
+      supply(**params)
     else
       UI.user_error!("No AAB or APK found in ./artifacts to upload to Play Store")
     end

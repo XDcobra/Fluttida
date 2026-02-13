@@ -1,0 +1,3 @@
+package_name("com.xdcobra.fluttida")
+# In CI we write the Google Play JSON key to /tmp/google-play.json
+json_key_file("/tmp/google-play.json")
