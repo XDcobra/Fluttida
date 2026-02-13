@@ -40,8 +40,18 @@ void _initializeMobileAds() {
     );
 
     MobileAds.instance.updateRequestConfiguration(config);
+    debugPrint(
+      'MobileAds: RequestConfiguration updated with testDeviceIds=${config.testDeviceIds}',
+    );
 
-    MobileAds.instance.initialize();
+    MobileAds.instance.initialize().then((InitializationStatus status) {
+      try {
+        debugPrint('MobileAds initialized: $status');
+        status.adapterStatuses.forEach((key, adapter) {
+          debugPrint('MobileAds adapter: $key => ${adapter.state}');
+        });
+      } catch (_) {}
+    });
   } catch (_) {}
 }
 
@@ -127,9 +137,10 @@ Future<ConsentStatus> _initConsentAndPersistFlag() async {
   final params = ConsentRequestParameters(
     tagForUnderAgeOfConsent: false,
     consentDebugSettings: ConsentDebugSettings(
-      // Enable for manual testing outside EU/EEA:
-      // debugGeography: DebugGeography.debugGeographyEea,
-      // testDeviceIdentifiers: ['YOUR-DEVICE-ID'],
+      // Force EEA debug geography and add test device so the consent form
+      // is shown on the specified device even when located outside the EEA.
+      debugGeography: DebugGeography.debugGeographyEea,
+      testIdentifiers: ['5071A5FDBA233F83AEE71564026F08AB'],
     ),
   );
 

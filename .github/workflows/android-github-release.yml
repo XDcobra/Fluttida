@@ -17,6 +17,10 @@ on:
         description: 'Tag name to create/update release for (e.g., v1.2.3+45)'
         required: false
         type: string
+  # Auto trigger on tags like v1.2.3 or v1.2.3+45
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write

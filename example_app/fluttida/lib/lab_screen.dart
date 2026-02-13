@@ -540,15 +540,36 @@ class _LabScreenState extends State<LabScreen> {
     });
 
     if (_adsEnabled) {
-      _loadBannerAd();
-      // Listen for consent completion and reload banner if needed
+      // Attach listener first so we don't race with consent flow.
       consentCompleteNotifier.addListener(_onConsentComplete);
       _consentListenerAttached = true;
+
+      // If consent flow already completed, or consent currently not required/obtained,
+      // it's safe to load the banner now. Otherwise wait for the notifier.
+      try {
+        final status = await ConsentInformation.instance.getConsentStatus();
+        debugPrint('ADS: initial consent status when loading config = $status');
+        if (consentCompleteNotifier.value ||
+            status == ConsentStatus.obtained ||
+            status == ConsentStatus.notRequired) {
+          _loadBannerAd();
+        } else {
+          debugPrint('ADS: deferring banner load until consent completes');
+        }
+      } catch (e) {
+        debugPrint(
+          'ADS: error checking consent status: $e — deferring ad load',
+        );
+      }
     }
   }
 
   void _onConsentComplete() {
+    debugPrint(
+      'ADS: consentCompleteNotifier changed → ${consentCompleteNotifier.value}',
+    );
     if (consentCompleteNotifier.value && !_isBannerReady && _bannerAd == null) {
+      debugPrint('ADS: consent obtained, loading banner now');
       _loadBannerAd();
     }
   }
@@ -568,8 +589,17 @@ class _LabScreenState extends State<LabScreen> {
   }
 
   Future<void> _loadBannerAd() async {
+    // Ensure we only request ads after consent flow has settled.
+    if (!consentCompleteNotifier.value) {
+      debugPrint(
+        'ADS: _loadBannerAd called before consent completed — deferring',
+      );
+      return;
+    }
+
     // 1. GDPR / UMP Gate
     final canRequest = await ConsentInformation.instance.canRequestAds();
+    debugPrint('ADS: canRequestAds=$canRequest');
     if (!canRequest) {
       debugPrint('ADS: canRequestAds=false → skip ad request');
       if (mounted) setState(() => _isBannerReady = false);
@@ -579,6 +609,15 @@ class _LabScreenState extends State<LabScreen> {
     // 2. Consent Status
     final status = await ConsentInformation.instance.getConsentStatus();
     debugPrint('ADS: consentStatus=$status');
+
+    // Log MobileAds initialization state (helpful to correlate SDK readiness)
+    try {
+      MobileAds.instance.initialize().then((init) {
+        debugPrint(
+          'ADS: MobileAds.initialize() status in _loadBannerAd: $init',
+        );
+      });
+    } catch (_) {}
 
     // 3. Consent-aware AdRequest
     final adRequest = AdRequest(
