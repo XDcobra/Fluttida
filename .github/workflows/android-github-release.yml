@@ -1,4 +1,4 @@
-# This workflow builds a debug-mode Android App Bundle (.aab) and APK (.apk)
+# This workflow builds a release-mode Android App Bundle (.aab) and APK (.apk)
 # suitable for public release via GitHub Releases. Ads are disabled in this build.
 name: Android GitHub release
 
@@ -70,7 +70,7 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build Android App Bundle (unsigned, debug-mode semantics)
+      - name: Build Android App Bundle (unsigned, release-mode, ads disabled)
         env:
           ORG_GRADLE_PROJECT_ADS_ENABLED: 'false'
         run: |
@@ -78,7 +78,7 @@ jobs:
             --build-name="${{ steps.version.outputs.version_name }}" \
             --build-number="${{ steps.version.outputs.build_number }}"
 
-      - name: Build Android APK (unsigned, debug-mode semantics)
+      - name: Build Android APK (unsigned, release-mode, ads disabled)
         env:
           ORG_GRADLE_PROJECT_ADS_ENABLED: 'false'
         run: |

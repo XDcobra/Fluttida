@@ -17,6 +17,18 @@ if (keystorePropertiesFile.exists()) {
 
 val admobAppIdAndroid = (project.findProperty("ADMOB_APP_ID_ANDROID") as String?)?.trim()
 val admobBannerUnitAndroid = (project.findProperty("ADMOB_BANNER_UNIT_ANDROID") as String?)?.trim()
+// Determine ADS_ENABLED from project property (set via ORG_GRADLE_PROJECT_ADS_ENABLED in CI).
+// If the property is not provided, default to true for release builds (ads enabled).
+val adsEnabled: Boolean = if (project.hasProperty("ADS_ENABLED")) {
+    val adsEnabledProp = (project.findProperty("ADS_ENABLED") as String?)?.trim()?.lowercase()
+    when (adsEnabledProp) {
+        "true", "1", "yes" -> true
+        "false", "0", "no" -> false
+        else -> true
+    }
+} else {
+    true
+}
 
 android {
     namespace = "com.xdcobra.fluttida"
@@ -73,20 +85,31 @@ android {
         }
         getByName("release") {
             val isReleaseTask = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
-            if (isReleaseTask && admobAppIdAndroid.isNullOrBlank()) {
-                throw GradleException("ADMOB_APP_ID_ANDROID is required for release builds")
-            }
-            if (isReleaseTask && admobBannerUnitAndroid.isNullOrBlank()) {
-                throw GradleException("ADMOB_BANNER_UNIT_ANDROID is required for release builds")
+
+            // Only require ADMOB secrets when ads are enabled for the build.
+            if (isReleaseTask && adsEnabled) {
+                if (admobAppIdAndroid.isNullOrBlank()) {
+                    throw GradleException("ADMOB_APP_ID_ANDROID is required for release builds when ADS_ENABLED=true")
+                }
+                if (admobBannerUnitAndroid.isNullOrBlank()) {
+                    throw GradleException("ADMOB_BANNER_UNIT_ANDROID is required for release builds when ADS_ENABLED=true")
+                }
             }
 
-            manifestPlaceholders["admobAppId"] = admobAppIdAndroid
-                ?: "ca-app-pub-3940256099942544~3347511713"
-            buildConfigField("boolean", "ADS_ENABLED", "true")
+            // Use provided IDs when ads are enabled, otherwise fall back to test IDs.
+            val testAppId = "ca-app-pub-3940256099942544~3347511713"
+            val testBanner = "ca-app-pub-3940256099942544/6300978111"
+
+            manifestPlaceholders["admobAppId"] = if (adsEnabled) {
+                admobAppIdAndroid ?: testAppId
+            } else {
+                testAppId
+            }
+            buildConfigField("boolean", "ADS_ENABLED", if (adsEnabled) "true" else "false")
             buildConfigField(
                 "String",
                 "ADMOB_BANNER_UNIT_ANDROID",
-                "\"${admobBannerUnitAndroid ?: "ca-app-pub-3940256099942544/6300978111"}\""
+                "\"${if (adsEnabled) (admobBannerUnitAndroid ?: testBanner) else testBanner}\""
             )
 
             signingConfig = if (keystorePropertiesFile.exists()) {
