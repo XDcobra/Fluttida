@@ -4,6 +4,7 @@ import 'pinning_config.dart';
 import 'stacks/stacks_impl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'ad_config.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -741,15 +742,27 @@ class _SettingsPageState extends State<SettingsPage> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        ElevatedButton.icon(
-                          onPressed: () => _showConsentForm(context),
-                          icon: const Icon(Icons.privacy_tip, size: 18),
-                          label: const Text('Privacy Settings'),
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: _openPrivacyPolicy,
+                            icon: const Icon(Icons.link, size: 18),
+                            label: const Text('Privacy Policy'),
+                          ),
                         ),
                         const SizedBox(width: 8),
-                        OutlinedButton(
-                          onPressed: () => _resetConsent(context),
-                          child: const Text('Reset'),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _showConsentForm(context),
+                            icon: const Icon(Icons.privacy_tip, size: 18),
+                            label: const Text('Privacy Settings'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _resetConsent(context),
+                            child: const Text('Reset'),
+                          ),
                         ),
                       ],
                     ),
@@ -801,6 +814,26 @@ class _SettingsPageState extends State<SettingsPage> {
           );
         }
       },
+    );
+  }
+
+  void _openPrivacyPolicy() {
+    final uri = Uri.parse(
+      'https://xdcobra.github.io/fluttida/privacy-policy.html',
+    );
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) {
+          final controller = WebViewController()
+            ..setJavaScriptMode(JavaScriptMode.unrestricted)
+            ..loadRequest(uri);
+          return Scaffold(
+            appBar: AppBar(title: const Text('Privacy Policy')),
+            body: WebViewWidget(controller: controller),
+          );
+        },
+      ),
     );
   }
 
