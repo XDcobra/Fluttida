@@ -240,8 +240,9 @@ jobs:
           fi
 
           mkdir -p example_app/fluttida/android/fastlane
-          printf '%s' "$FASTLANE_JSON_KEY" > example_app/fluttida/android/fastlane/fastlane.json
-          chmod 600 example_app/fluttida/android/fastlane/fastlane.json
+          # Write the JSON key to /tmp for the top-level Fastlane lane (CI uses repo-root fastlane)
+          printf '%s' "$FASTLANE_JSON_KEY" > /tmp/google-play.json
+          chmod 600 /tmp/google-play.json
 
       - name: Upload to Play Store (Closed Testing)
         env:
@@ -249,12 +250,12 @@ jobs:
           VERSION_NAME: ${{ needs.build-android-signed.outputs.version_name }}
         run: |
           set -euo pipefail
-          cd example_app/fluttida/android
+          # Use the top-level Fastlane lane which expects artifacts in ./artifacts and /tmp/google-play.json
           if [ -f ./Gemfile ]; then
             bundle install
-            bundle exec fastlane closed_testing
+            bundle exec fastlane deploy_closed
           else
-            fastlane closed_testing
+            fastlane deploy_closed
           fi
 
       - name: Cleanup keystore

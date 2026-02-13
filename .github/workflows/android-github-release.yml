@@ -134,9 +134,9 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/fluttida_${{ steps.version.outputs.version_name }}.aab
-            artifacts/fluttida_${{ steps.version.outputs.version_name }}.apk
-            artifacts/fluttida_${{ steps.version.outputs.version_name }}.aab.sha256
-            artifacts/fluttida_${{ steps.version.outputs.version_name }}.apk.sha256
+            example_app/fluttida/artifacts/fluttida_${{ steps.version.outputs.version_name }}.aab
+            example_app/fluttida/artifacts/fluttida_${{ steps.version.outputs.version_name }}.apk
+            example_app/fluttida/artifacts/fluttida_${{ steps.version.outputs.version_name }}.aab.sha256
+            example_app/fluttida/artifacts/fluttida_${{ steps.version.outputs.version_name }}.apk.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

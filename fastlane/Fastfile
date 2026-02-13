@@ -7,10 +7,39 @@ platform :android do
     aab = Dir["./artifacts/*.aab"].first
     apk = Dir["./artifacts/*.apk"].first
 
+    version_code = ENV['VERSION_CODE'] || ENV['ORG_GRADLE_PROJECT_VERSION_CODE']
+    version_name = ENV['VERSION_NAME'] || ENV['ORG_GRADLE_PROJECT_VERSION_NAME']
+    release_name = version_code && version_name ? "#{version_code} (#{version_name})" : nil
+
+    # try to find mapping file inside artifacts (if the build uploaded it)
+    mapping = Dir["./artifacts/**/mapping*.txt"].first
+
     if aab
-      upload_to_play_store(track: 'closed', aab: aab, json_key: json_key)
+      params = {
+        track: 'closed',
+        aab: aab,
+        json_key: json_key,
+        release_name: release_name,
+        skip_upload_metadata: true,
+        skip_upload_images: true,
+        skip_upload_screenshots: true,
+        skip_upload_changelogs: true
+      }
+      params[:mapping] = mapping if mapping
+      upload_to_play_store(**params)
     elsif apk
-      upload_to_play_store(track: 'closed', apk: apk, json_key: json_key)
+      params = {
+        track: 'closed',
+        apk: apk,
+        json_key: json_key,
+        release_name: release_name,
+        skip_upload_metadata: true,
+        skip_upload_images: true,
+        skip_upload_screenshots: true,
+        skip_upload_changelogs: true
+      }
+      params[:mapping] = mapping if mapping
+      upload_to_play_store(**params)
     else
       UI.user_error!("No AAB or APK found in ./artifacts to upload to Play Store")
     end
