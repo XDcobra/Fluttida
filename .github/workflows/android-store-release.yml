@@ -136,6 +136,7 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
+          set -euo pipefail
           mkdir -p android/app
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
 
@@ -145,6 +146,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           cat > android/key.properties <<EOF
           storePassword=${ANDROID_KEYSTORE_PASSWORD}
           keyPassword=${ANDROID_KEY_PASSWORD}
@@ -203,11 +205,27 @@ jobs:
           name: fluttida-android-signed-${{ needs.build-android-signed.outputs.version_name }}+${{ needs.build-android-signed.outputs.build_number }}
           path: ./artifacts
 
+      - name: Inspect downloaded artifacts
+        run: |
+          set -euo pipefail
+          echo "Listing ./artifacts recursive contents"
+          ls -R ./artifacts || true
+          echo "Checking for .aab/.apk files under ./artifacts"
+          found=$(find ./artifacts -type f \( -iname "*.aab" -o -iname "*.apk" \) -print -quit || true)
+          if [ -z "${found}" ]; then
+            echo "No AAB or APK found in ./artifacts; aborting." >&2
+            ls -R ./artifacts || true
+            exit 1
+          fi
+          echo "Found artifacts:"
+          find ./artifacts -type f \( -iname "*.aab" -o -iname "*.apk" \) -print
+
       - name: Decode Android keystore
         if: always()
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
+          set -euo pipefail
           mkdir -p android/app
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
 
@@ -218,6 +236,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           cat > android/key.properties <<EOF
           storePassword=${ANDROID_KEYSTORE_PASSWORD}
           keyPassword=${ANDROID_KEY_PASSWORD}

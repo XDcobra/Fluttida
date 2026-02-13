@@ -4,8 +4,8 @@ platform :android do
   desc "Upload signed AAB/APK to Play closed track"
   lane :deploy_closed do
     json_key = '/tmp/google-play.json'
-    aab = Dir["./artifacts/*.aab"].first
-    apk = Dir["./artifacts/*.apk"].first
+    aab = Dir["./artifacts/**/*.aab"].first
+    apk = Dir["./artifacts/**/*.apk"].first
 
     version_code = ENV['VERSION_CODE'] || ENV['ORG_GRADLE_PROJECT_VERSION_CODE']
     version_name = ENV['VERSION_NAME'] || ENV['ORG_GRADLE_PROJECT_VERSION_NAME']
