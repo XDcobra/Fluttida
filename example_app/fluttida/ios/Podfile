@@ -64,6 +64,17 @@ post_install do |installer|
       unless ld.include?('-framework OpenSSL')
         build_configuration.build_settings['OTHER_LDFLAGS'] = "#{ld} -framework OpenSSL"
       end
+      # Also add library search path and traditional OpenSSL libs in case the
+      # vendored package provides libssl/libcrypto (linker expects -lssl/-lcrypto).
+      lib_search = build_configuration.build_settings['LIBRARY_SEARCH_PATHS'] || '$(inherited)'
+      runner_libs = '"${PODS_ROOT}/../Runner/Frameworks" $(inherited)'
+      unless lib_search.include?('Runner/Frameworks')
+        build_configuration.build_settings['LIBRARY_SEARCH_PATHS'] = "#{runner_libs} #{lib_search}"
+      end
+
+      unless build_configuration.build_settings['OTHER_LDFLAGS'].include?('-lssl')
+        build_configuration.build_settings['OTHER_LDFLAGS'] = "#{build_configuration.build_settings['OTHER_LDFLAGS']} -lssl -lcrypto"
+      end
     end
   end
 end
