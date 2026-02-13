@@ -50,5 +50,20 @@ post_install do |installer|
     rescue StandardError => e
       puts "Warning: flutter_additional_ios_build_settings failed for target #{target.name}: #{e.message}"
     end
+    # Ensure OpenSSL framework is found at link time. Some vendored libcurl builds
+    # require OpenSSL symbols; add Runner/Frameworks to FRAMEWORK_SEARCH_PATHS and
+    # force linking against OpenSSL framework.
+    target.build_configurations.each do |build_configuration|
+      fs = build_configuration.build_settings['FRAMEWORK_SEARCH_PATHS'] || '$(inherited)'
+      runner_frameworks = '"${PODS_ROOT}/../Runner/Frameworks" $(inherited)'
+      unless fs.include?('Runner/Frameworks')
+        build_configuration.build_settings['FRAMEWORK_SEARCH_PATHS'] = "#{runner_frameworks} #{fs}"
+      end
+
+      ld = build_configuration.build_settings['OTHER_LDFLAGS'] || '$(inherited)'
+      unless ld.include?('-framework OpenSSL')
+        build_configuration.build_settings['OTHER_LDFLAGS'] = "#{ld} -framework OpenSSL"
+      end
+    end
   end
 end
