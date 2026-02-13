@@ -4,15 +4,19 @@ platform :android do
   desc "Upload signed AAB/APK to Play closed track"
   lane :deploy_closed do
     json_key = '/tmp/google-play.json'
-    aab = Dir["./artifacts/**/*.aab"].first
-    apk = Dir["./artifacts/**/*.apk"].first
+    # Ensure we search from the repository root so Fastlane's working
+    # directory (which may be the `fastlane` folder) doesn't hide the
+    # downloaded `./artifacts` directory.
+    repo_root = File.expand_path('..', __dir__)
+    aab = Dir[File.join(repo_root, 'artifacts', '**', '*.aab')].first
+    apk = Dir[File.join(repo_root, 'artifacts', '**', '*.apk')].first
 
     version_code = ENV['VERSION_CODE'] || ENV['ORG_GRADLE_PROJECT_VERSION_CODE']
     version_name = ENV['VERSION_NAME'] || ENV['ORG_GRADLE_PROJECT_VERSION_NAME']
     release_name = version_code && version_name ? "#{version_code} (#{version_name})" : nil
 
     # try to find mapping file inside artifacts (if the build uploaded it)
-    mapping = Dir["./artifacts/**/mapping*.txt"].first
+    mapping = Dir[File.join(repo_root, 'artifacts', '**', 'mapping*.txt')].first
 
     if aab
       params = {
