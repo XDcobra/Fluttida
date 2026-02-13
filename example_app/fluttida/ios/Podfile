@@ -43,5 +43,12 @@ target 'Runner' do
 end
 
 post_install do |installer|
-  flutter_additional_ios_build_settings(installer)
+  # Apply Flutter's additional iOS build settings to each Pod target
+  installer.pods_project.targets.each do |target|
+    begin
+      flutter_additional_ios_build_settings(target)
+    rescue StandardError => e
+      puts "Warning: flutter_additional_ios_build_settings failed for target #{target.name}: #{e.message}"
+    end
+  end
 end

@@ -1,6 +1,0 @@
-source 'https://rubygems.org'
-
-# Pin CocoaPods to a version compatible with the Flutter podhelper used by the
-# project's Flutter SDK. Adjust this version if CI still fails; 1.15.4 is a
-# conservative choice that is widely compatible with Flutter toolings.
-gem 'cocoapods', '1.15.4'

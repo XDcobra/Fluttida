@@ -71,22 +71,10 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Ruby (for Bundler)
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-
-      - name: Install Bundler and Gems (including CocoaPods)
+      - name: Install CocoaPods
         run: |
           cd ios
-          gem install bundler
-          bundle config set --local path 'vendor/bundle'
-          bundle install --jobs 4 --retry 3
-
-      - name: Install CocoaPods via Bundler
-        run: |
-          cd ios
-          bundle exec pod install --repo-update
+          pod install --repo-update
 
       - name: Build iOS (release, no codesign)
         env:
