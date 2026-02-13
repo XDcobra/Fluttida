@@ -1,7 +1,8 @@
-platform :ios, '13.0'
-
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
+platform :ios, '13.0'
+
+# CocoaPods analytics is synchronous and can slow down flutter builds.
 project 'Runner', {
   'Debug' => :debug,
   'Profile' => :release,
@@ -9,41 +10,70 @@ project 'Runner', {
 }
 
 def flutter_root
-  generated_xcode_build_settings_path = File.expand_path(
-    File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__
-  )
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise <<~MSG
+      Generated.xcconfig not found. Run 'flutter pub get' and try again.
+    MSG
+  end
+
   File.foreach(generated_xcode_build_settings_path) do |line|
-    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    matches = line.match(/FLUTTER_ROOT=(.*)/)
     return matches[1].strip if matches
   end
-  raise "FLUTTER_ROOT not found. Run flutter pub get first."
+  raise 'FLUTTER_ROOT not found in Generated.xcconfig. Try running flutter pub get.'
 end
 
-require File.expand_path(
-  File.join('packages', 'flutter_tools', 'bin', 'podhelper'),
-  flutter_root
-)
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
 
 flutter_ios_podfile_setup
 
+linkage = ENV['USE_FRAMEWORKS']
+if linkage
+  Pod::UI.puts "Configuring Pods with #{linkage}ally linked frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+use_modular_headers!
+
 target 'Runner' do
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  # Local pod that vendores prebuilt frameworks (libcurl, OpenSSL)
+  pod 'FluttidaLibs', :path => File.join(__dir__, 'LocalPods', 'FluttidaLibs')
 end
 
 post_install do |installer|
+  # Apply Flutter's additional iOS build settings to each Pod target
   installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
-      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
-      config.build_settings['CODE_SIGNING_IDENTITY'] = ''
+    begin
+      flutter_additional_ios_build_settings(target)
+    rescue StandardError => e
+      puts "Warning: flutter_additional_ios_build_settings failed for target #{target.name}: #{e.message}"
     end
+    # Ensure OpenSSL framework is found at link time. Some vendored libcurl builds
+    # require OpenSSL symbols; add Runner/Frameworks to FRAMEWORK_SEARCH_PATHS and
+    # force linking against OpenSSL framework.
+    target.build_configurations.each do |build_configuration|
+      fs = build_configuration.build_settings['FRAMEWORK_SEARCH_PATHS'] || '$(inherited)'
+      runner_frameworks = '"${PODS_ROOT}/../Runner/Frameworks" $(inherited)'
+      unless fs.include?('Runner/Frameworks')
+        build_configuration.build_settings['FRAMEWORK_SEARCH_PATHS'] = "#{runner_frameworks} #{fs}"
+      end
 
-    # Privacy bundle targets only change here
-    if target.name.end_with?('_privacy')
-      target.build_configurations.each do |config|
-        config.build_settings['SKIP_INSTALL'] = 'YES'
-        config.build_settings['ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'] = 'NO'
+      ld = build_configuration.build_settings['OTHER_LDFLAGS'] || '$(inherited)'
+      unless ld.include?('-framework OpenSSL')
+        build_configuration.build_settings['OTHER_LDFLAGS'] = "#{ld} -framework OpenSSL"
+      end
+      # Also add library search path and traditional OpenSSL libs in case the
+      # vendored package provides libssl/libcrypto (linker expects -lssl/-lcrypto).
+      lib_search = build_configuration.build_settings['LIBRARY_SEARCH_PATHS'] || '$(inherited)'
+      runner_libs = '"${PODS_ROOT}/../Runner/Frameworks" $(inherited)'
+      unless lib_search.include?('Runner/Frameworks')
+        build_configuration.build_settings['LIBRARY_SEARCH_PATHS'] = "#{runner_libs} #{lib_search}"
+      end
+
+      unless build_configuration.build_settings['OTHER_LDFLAGS'].include?('-lssl')
+        build_configuration.build_settings['OTHER_LDFLAGS'] = "#{build_configuration.build_settings['OTHER_LDFLAGS']} -lssl -lcrypto"
       end
     end
   end

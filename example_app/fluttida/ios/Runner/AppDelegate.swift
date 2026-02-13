@@ -12,6 +12,43 @@ import Flutter
     let channel = FlutterMethodChannel(name: "fluttida/network", binaryMessenger: controller.binaryMessenger)
 
     channel.setMethodCallHandler { call, result in
+      if call.method == "getBuildInfo" {
+        let info = Bundle.main.infoDictionary
+        let versionName = info?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+        let buildNumber = info?["CFBundleVersion"] as? String ?? "0"
+        result([
+          "versionName": versionName,
+          "buildNumber": buildNumber,
+        ])
+        return
+      }
+
+      if call.method == "getAdConfig" {
+        let info = Bundle.main.infoDictionary
+
+        var adsEnabledBool = false
+        if let v = info?["ADS_ENABLED"] as? Bool {
+          adsEnabledBool = v
+        } else if let v = info?["ADS_ENABLED"] as? String {
+          adsEnabledBool = (v as NSString).boolValue
+        } else if let v = info?["ADS_ENABLED"] as? NSNumber {
+          adsEnabledBool = v.boolValue
+        }
+
+        var banner: String = ""
+        if let b = info?["admobBannerUnitIos"] as? String, !b.isEmpty {
+          banner = b
+        } else if let b = info?["admobBannerUnit"] as? String, !b.isEmpty {
+          banner = b
+        }
+
+        result([
+          "adsEnabled": adsEnabledBool,
+          "admobBannerUnitIos": banner,
+        ])
+        return
+      }
+
       if call.method == "iosNativeCurl" {
         guard
           let args = call.arguments as? [String: Any],

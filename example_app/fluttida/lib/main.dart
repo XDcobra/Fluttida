@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'lab_screen.dart';
-import 'versions.dart';
+import 'ad_config.dart';
 import 'stacks/stacks_impl.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +15,23 @@ void main() async {
   // Start UI immediately so the app is usable while consent runs
   runApp(const MyApp());
 
+  // Bootstrap consent + ads + overrides asynchronously with retry/backoff
+  _bootstrap();
+}
+
+Future<void> _bootstrap() async {
+  final adConfig = await AdConfig.load();
+  if (adConfig.adsEnabled) {
+    _initializeMobileAds();
+    await _initConsentWithRetry();
+  } else {
+    debugPrint('ADS: disabled via BuildConfig.ADS_ENABLED');
+  }
+
+  await _initializeGlobalOverrides();
+}
+
+void _initializeMobileAds() {
   // Kick off Mobile Ads SDK initialization immediately (non-blocking)
   // This ensures the SDK is ready when banner requests are made from initState.
   try {
@@ -23,15 +40,22 @@ void main() async {
     );
 
     MobileAds.instance.updateRequestConfiguration(config);
+    debugPrint(
+      'MobileAds: RequestConfiguration updated with testDeviceIds=${config.testDeviceIds}',
+    );
 
-    MobileAds.instance.initialize();
+    MobileAds.instance.initialize().then((InitializationStatus status) {
+      try {
+        debugPrint('MobileAds initialized: $status');
+        status.adapterStatuses.forEach((key, adapter) {
+          debugPrint('MobileAds adapter: $key => ${adapter.state}');
+        });
+      } catch (_) {}
+    });
   } catch (_) {}
-
-  // Bootstrap consent + ads + overrides asynchronously with retry/backoff
-  _bootstrap();
 }
 
-Future<void> _bootstrap() async {
+Future<void> _initConsentWithRetry() async {
   const int maxAttempts = 5;
   Duration backoff = const Duration(seconds: 6);
 
@@ -63,8 +87,6 @@ Future<void> _bootstrap() async {
     consentCompleteNotifier.value = true;
     debugPrint('Consent complete → ads enabled ($finalStatus)');
   }
-
-  await _initializeGlobalOverrides();
 }
 
 Future<void> _initializeGlobalOverrides() async {
@@ -115,9 +137,10 @@ Future<ConsentStatus> _initConsentAndPersistFlag() async {
   final params = ConsentRequestParameters(
     tagForUnderAgeOfConsent: false,
     consentDebugSettings: ConsentDebugSettings(
-      // Enable for manual testing outside EU/EEA:
-      // debugGeography: DebugGeography.debugGeographyEea,
-      // testDeviceIdentifiers: ['YOUR-DEVICE-ID'],
+      // Force EEA debug geography and add test device so the consent form
+      // is shown on the specified device even when located outside the EEA.
+      debugGeography: DebugGeography.debugGeographyEea,
+      testIdentifiers: ['5071A5FDBA233F83AEE71564026F08AB'],
     ),
   );
 

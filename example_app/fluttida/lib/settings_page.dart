@@ -4,7 +4,7 @@ import 'pinning_config.dart';
 import 'stacks/stacks_impl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'versions.dart';
+import 'ad_config.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -17,12 +17,14 @@ class _SettingsPageState extends State<SettingsPage> {
   PinningConfig _pinning = const PinningConfig.disabled();
   final TextEditingController _pinInputController = TextEditingController();
   bool _useGlobalOverride = false;
+  bool _adsEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _loadPinningConfig();
     _loadGlobalOverrideSetting();
+    _loadAdConfig();
   }
 
   @override
@@ -58,6 +60,11 @@ class _SettingsPageState extends State<SettingsPage> {
       final value = prefs.getBool('pinning.useGlobalOverride') ?? false;
       if (mounted) setState(() => _useGlobalOverride = value);
     } catch (_) {}
+  }
+
+  Future<void> _loadAdConfig() async {
+    final config = await AdConfig.load();
+    if (mounted) setState(() => _adsEnabled = config.adsEnabled);
   }
 
   Future<void> _saveGlobalOverrideSetting(bool value) async {
@@ -388,8 +395,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 12),
-          // GDPR Consent Card (only shown in release mode for store app)
-          if (!kIsLabApp) _buildConsentCard(),
+          // GDPR Consent Card (only shown when ads are enabled)
+          if (_adsEnabled) _buildConsentCard(),
         ],
       ),
     );
@@ -788,7 +795,9 @@ class _SettingsPageState extends State<SettingsPage> {
       (FormError formError) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to load form: ${formError.message}')),
+            SnackBar(
+              content: Text('Failed to load form: ${formError.message}'),
+            ),
           );
         }
       },

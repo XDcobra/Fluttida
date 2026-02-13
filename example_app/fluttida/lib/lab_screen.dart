@@ -9,7 +9,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter/foundation.dart';
 import 'stacks/stacks_impl.dart';
-import 'versions.dart';
+import 'ad_config.dart';
+import 'build_info.dart';
 import 'pinning_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_page.dart';
@@ -451,7 +452,10 @@ class _LabScreenState extends State<LabScreen> {
 
   BannerAd? _bannerAd;
   bool _isBannerReady = false;
-  bool get _adsEnabled => !kIsLabApp;
+  bool _adsEnabled = false;
+  bool _consentListenerAttached = false;
+  String? _bannerUnit;
+  String _versionLabel = 'v0.0.0 (build 0)';
 
   late final ScrollController _stackListScrollController;
 
@@ -513,17 +517,59 @@ class _LabScreenState extends State<LabScreen> {
     // Scroll controller for the stacks list (so we can show a visible scrollbar)
     _stackListScrollController = ScrollController();
 
-    if (_adsEnabled) {
-      _loadBannerAd();
-      // Listen for consent completion and reload banner if needed
-      consentCompleteNotifier.addListener(_onConsentComplete);
-    }
+    _loadAdConfig();
+    _loadBuildInfo();
 
     _loadPinningConfig();
   }
 
+  Future<void> _loadBuildInfo() async {
+    final info = await BuildInfo.load();
+    if (!mounted) return;
+    setState(() {
+      _versionLabel = 'v${info.versionName} (build ${info.buildNumber})';
+    });
+  }
+
+  Future<void> _loadAdConfig() async {
+    final config = await AdConfig.load();
+    if (!mounted) return;
+    setState(() {
+      _adsEnabled = config.adsEnabled;
+      _bannerUnit = config.bannerUnit;
+    });
+
+    if (_adsEnabled) {
+      // Attach listener first so we don't race with consent flow.
+      consentCompleteNotifier.addListener(_onConsentComplete);
+      _consentListenerAttached = true;
+
+      // If consent flow already completed, or consent currently not required/obtained,
+      // it's safe to load the banner now. Otherwise wait for the notifier.
+      try {
+        final status = await ConsentInformation.instance.getConsentStatus();
+        debugPrint('ADS: initial consent status when loading config = $status');
+        if (consentCompleteNotifier.value ||
+            status == ConsentStatus.obtained ||
+            status == ConsentStatus.notRequired) {
+          _loadBannerAd();
+        } else {
+          debugPrint('ADS: deferring banner load until consent completes');
+        }
+      } catch (e) {
+        debugPrint(
+          'ADS: error checking consent status: $e — deferring ad load',
+        );
+      }
+    }
+  }
+
   void _onConsentComplete() {
+    debugPrint(
+      'ADS: consentCompleteNotifier changed → ${consentCompleteNotifier.value}',
+    );
     if (consentCompleteNotifier.value && !_isBannerReady && _bannerAd == null) {
+      debugPrint('ADS: consent obtained, loading banner now');
       _loadBannerAd();
     }
   }
@@ -536,15 +582,24 @@ class _LabScreenState extends State<LabScreen> {
     _bannerAd?.dispose();
     ctrl.dispose();
     _stackListScrollController.dispose();
-    if (_adsEnabled) {
+    if (_consentListenerAttached) {
       consentCompleteNotifier.removeListener(_onConsentComplete);
     }
     super.dispose();
   }
 
   Future<void> _loadBannerAd() async {
+    // Ensure we only request ads after consent flow has settled.
+    if (!consentCompleteNotifier.value) {
+      debugPrint(
+        'ADS: _loadBannerAd called before consent completed — deferring',
+      );
+      return;
+    }
+
     // 1. GDPR / UMP Gate
     final canRequest = await ConsentInformation.instance.canRequestAds();
+    debugPrint('ADS: canRequestAds=$canRequest');
     if (!canRequest) {
       debugPrint('ADS: canRequestAds=false → skip ad request');
       if (mounted) setState(() => _isBannerReady = false);
@@ -555,23 +610,37 @@ class _LabScreenState extends State<LabScreen> {
     final status = await ConsentInformation.instance.getConsentStatus();
     debugPrint('ADS: consentStatus=$status');
 
+    // Log MobileAds initialization state (helpful to correlate SDK readiness)
+    try {
+      MobileAds.instance.initialize().then((init) {
+        debugPrint(
+          'ADS: MobileAds.initialize() status in _loadBannerAd: $init',
+        );
+      });
+    } catch (_) {}
+
     // 3. Consent-aware AdRequest
     final adRequest = AdRequest(
       nonPersonalizedAds: status != ConsentStatus.obtained,
     );
 
+    final adUnitId = _bannerUnit;
+    if (adUnitId == null || adUnitId.isEmpty) {
+      debugPrint('ADS: missing ad unit id → skip ad request');
+      if (mounted) setState(() => _isBannerReady = false);
+      return;
+    }
+
     debugPrint(
       'ADS: loading banner '
       'platform=${Platform.operatingSystem} '
-      'unit=${Platform.isAndroid ? kAdMobBannerUnitAndroid : kAdMobBannerUnitIos} '
+      'unit=$adUnitId '
       'nonPersonalized=${status != ConsentStatus.obtained}',
     );
 
     // 4. Banner creation
     _bannerAd = BannerAd(
-      adUnitId: Platform.isAndroid
-          ? kAdMobBannerUnitAndroid
-          : kAdMobBannerUnitIos,
+      adUnitId: adUnitId,
       size: AdSize.banner,
       request: adRequest,
       listener: BannerAdListener(
@@ -700,7 +769,7 @@ class _LabScreenState extends State<LabScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 2.0),
                     child: Text(
-                      'v$kAppVersion (build $kBuildNumber)',
+                      _versionLabel,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),

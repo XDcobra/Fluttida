@@ -52,6 +52,10 @@
 	</dict>
 	<key>io.flutter.embedded_views_preview</key>
 	<true/>
+	<key>ADS_ENABLED</key>
+	<string>$(ADS_ENABLED)</string>
+	<key>admobBannerUnitIos</key>
+	<string>$(ADMOB_BANNER_UNIT_IOS)</string>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
 </dict>

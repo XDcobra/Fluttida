@@ -1,0 +1,142 @@
+# This workflow builds a debug-mode Android App Bundle (.aab) and APK (.apk)
+# suitable for public release via GitHub Releases. Ads are disabled in this build.
+name: Android debug release (public GitHub release, no ads)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 1.2.3)'
+        required: true
+        type: string
+      build_number:
+        description: 'Build number (optional, defaults to git commit count)'
+        required: false
+        type: string
+      tag:
+        description: 'Tag name to create/update release for (e.g., v1.2.3+45)'
+        required: false
+        type: string
+  # Auto trigger on tags like v1.2.3 or v1.2.3+45
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-debug-for-release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: example_app/fluttida
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      build_number: ${{ steps.version.outputs.build_number }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive version from input
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION_NAME="${{ github.event.inputs.version }}"
+          BUILD_NUMBER="${{ github.event.inputs.build_number }}"
+          if [ -z "$BUILD_NUMBER" ]; then
+            BUILD_NUMBER=$(git rev-list --count HEAD)
+          fi
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Resolved version_name=$VERSION_NAME build_number=$BUILD_NUMBER"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.38.5'
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Android App Bundle (unsigned, debug-mode semantics)
+        env:
+          ORG_GRADLE_PROJECT_ADS_ENABLED: 'false'
+        run: |
+          flutter build appbundle --release \
+            --build-name="${{ steps.version.outputs.version_name }}" \
+            --build-number="${{ steps.version.outputs.build_number }}"
+
+      - name: Build Android APK (unsigned, debug-mode semantics)
+        env:
+          ORG_GRADLE_PROJECT_ADS_ENABLED: 'false'
+        run: |
+          flutter build apk --release \
+            --build-name="${{ steps.version.outputs.version_name }}" \
+            --build-number="${{ steps.version.outputs.build_number }}"
+
+      - name: Prepare assets and compute SHA-256
+        id: prep_assets
+        run: |
+          set -euo pipefail
+          VERSION_NAME="${{ steps.version.outputs.version_name }}"
+
+          AAB_SRC=$(find build -type f -name "*.aab" | head -n 1)
+          APK_SRC=$(find build -type f -name "*.apk" | head -n 1)
+
+          if [ -z "$AAB_SRC" ] || [ -z "$APK_SRC" ]; then
+            echo "Missing built artifacts (.aab/.apk) under build/"
+            ls -la build || true
+            exit 1
+          fi
+
+          AAB_OUT="artifacts/fluttida_${VERSION_NAME}.aab"
+          APK_OUT="artifacts/fluttida_${VERSION_NAME}.apk"
+          mkdir -p artifacts
+          cp "$AAB_SRC" "$AAB_OUT"
+          cp "$APK_SRC" "$APK_OUT"
+
+          sha256sum "$AAB_OUT" | tee "$AAB_OUT.sha256"
+          sha256sum "$APK_OUT" | tee "$APK_OUT.sha256"
+
+          echo "checksums<<EOF" >> "$GITHUB_OUTPUT"
+          sha256sum "$AAB_OUT"
+          sha256sum "$APK_OUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Determine tag name
+        id: determine_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release and upload artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.determine_tag.outputs.tag }}
+          name: "fluttida_${{ steps.version.outputs.version_name }}"
+          body: |
+            Public debug build (no ads) for tag ${{ steps.determine_tag.outputs.tag }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/fluttida_${{ steps.version.outputs.version_name }}.aab
+            artifacts/fluttida_${{ steps.version.outputs.version_name }}.apk
+            artifacts/fluttida_${{ steps.version.outputs.version_name }}.aab.sha256
+            artifacts/fluttida_${{ steps.version.outputs.version_name }}.apk.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,7 +3,7 @@
 # Once I can test this properly, I'll re-enable this workflow.
 # related github issue: https://github.com/flutter/flutter/issues/169272
 
-name: Release (unsigned APK + IPA)
+name: DISABLED Release (unsigned APK + IPA)
 
 # Triggers
 # This workflow is manual-only by default. Use the Actions UI -> "Run workflow"
@@ -32,6 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate required secrets (android)
+        run: |
+          if [ -z "${{ secrets.ADMOB_BANNER_UNIT_ANDROID }}" ]; then
+            echo "Missing secret: ADMOB_BANNER_UNIT_ANDROID" >&2
+            exit 1
+          fi
+
       - name: Set vars from tag
         id: set-vars
         run: |
@@ -52,12 +59,13 @@ jobs:
         run: flutter pub get
 
       - name: Build Android APK (unsigned)
+        env:
+          ORG_GRADLE_PROJECT_ADMOB_BANNER_UNIT_ANDROID: ${{ secrets.ADMOB_BANNER_UNIT_ANDROID }}
+          ORG_GRADLE_PROJECT_ADS_ENABLED: 'true'
         run: |
           flutter build apk --release \
             --build-name=${{ env.VERSION }} \
-            --build-number=${{ env.BUILD_NUMBER }} \
-            --dart-define=APP_VERSION=${{ env.VERSION }} \
-            --dart-define=APP_BUILD_NUMBER=${{ env.BUILD_NUMBER }}
+            --build-number=${{ env.BUILD_NUMBER }}
           ls -la build/app/outputs/flutter-apk || true
 
       - name: Upload Android artifact
@@ -74,6 +82,13 @@ jobs:
         working-directory: example_app/fluttida
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate required secrets (ios)
+        run: |
+          if [ -z "${{ secrets.ADMOB_BANNER_UNIT_IOS }}" ]; then
+            echo "Missing secret: ADMOB_BANNER_UNIT_IOS" >&2
+            exit 1
+          fi
 
       - name: Set vars from tag
         run: |
@@ -131,12 +146,14 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS (release, no codesign)
+        env:
+          ADS_ENABLED: 'true'
+          ADMOB_BANNER_UNIT_IOS: ${{ secrets.ADMOB_BANNER_UNIT_IOS }}
+          XCODE_XCCONFIG_FILE: ${{ github.workspace }}/example_app/fluttida/ios/Runner/Secrets.xcconfig
         run: |
           flutter build ios --release --no-codesign \
             --build-name=${{ env.VERSION }} \
-            --build-number=${{ env.BUILD_NUMBER }} \
-            --dart-define=APP_VERSION=${{ env.VERSION }} \
-            --dart-define=APP_BUILD_NUMBER=${{ env.BUILD_NUMBER }}
+            --build-number=${{ env.BUILD_NUMBER }}
 
       - name: Create unsigned IPA from .app
         run: |

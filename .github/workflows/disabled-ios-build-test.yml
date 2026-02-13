@@ -1,0 +1,111 @@
+name: DISABLED iOS unsigned build (.ipa)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - 'README.md'
+      - '**/README.md'
+      - '**/README.*'
+
+jobs:
+  build-ios-unsigned:
+    runs-on: macos-latest
+
+    defaults:
+      run:
+        working-directory: example_app/fluttida
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.ADMOB_BANNER_UNIT_IOS }}" ]; then
+            echo "Missing secret: ADMOB_BANNER_UNIT_IOS" >&2
+            exit 1
+          fi
+
+      - name: Derive version (main branch)
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION_LINE=$(grep '^version:' pubspec.yaml | head -n 1 | awk '{print $2}')
+          VERSION_NAME="${VERSION_LINE%%+*}"
+          BUILD_NUMBER_PART="${VERSION_LINE#*+}"
+          if [ "$BUILD_NUMBER_PART" = "$VERSION_LINE" ]; then
+            BUILD_NUMBER=$(git rev-list --count HEAD)
+          else
+            BUILD_NUMBER="$BUILD_NUMBER_PART"
+          fi
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Resolved version_name=$VERSION_NAME build_number=$BUILD_NUMBER"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: '3.38.5'
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Ensure vendored frameworks present
+        run: |
+          echo "Checking for libcurl.xcframework and OpenSSL.xcframework"
+          if [ ! -d "ios/Runner/Frameworks/libcurl.xcframework" ]; then
+            echo "Missing libcurl.xcframework at ios/Runner/Frameworks/libcurl.xcframework" >&2
+            ls -la ios/Runner/Frameworks || true
+            exit 1
+          fi
+          if [ ! -d "ios/Runner/Frameworks/OpenSSL.xcframework" ]; then
+            echo "Missing OpenSSL.xcframework at ios/Runner/Frameworks/OpenSSL.xcframework" >&2
+            ls -la ios/Runner/Frameworks || true
+            exit 1
+          fi
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Build iOS (release, no codesign)
+        env:
+          ADS_ENABLED: 'true'
+          ADMOB_BANNER_UNIT_IOS: ${{ secrets.ADMOB_BANNER_UNIT_IOS }}
+          XCODE_XCCONFIG_FILE: ${{ github.workspace }}/example_app/fluttida/ios/Runner/Secrets.xcconfig
+        run: |
+          flutter build ios --release --no-codesign \
+            --build-name="${{ steps.version.outputs.version_name }}" \
+            --build-number="${{ steps.version.outputs.build_number }}"
+
+      - name: Create unsigned IPA from .app
+        run: |
+          APP_DIR="build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP_DIR" ]; then
+            echo "Runner.app not found at $APP_DIR"
+            ls -la build/ios/iphoneos || true
+            exit 1
+          fi
+
+          mkdir -p build/ios/ipa/Payload
+          rm -rf build/ios/ipa/Payload/*
+          cp -R "$APP_DIR" build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          zip -r Fluttida-unsigned.ipa Payload
+          cd -
+
+          ls -la build/ios/ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fluttida-unsigned-ipa-${{ steps.version.outputs.version_name }}+${{ steps.version.outputs.build_number }}
+          path: example_app/fluttida/build/ios/ipa/Fluttida-unsigned.ipa
