@@ -47,8 +47,8 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: "beta"
-          flutter-version: '3.42.0-0.0.pre'
+          channel: "stable"
+          flutter-version: '3.38.5'
           cache: true
 
       - name: Flutter doctor
@@ -71,10 +71,22 @@ jobs:
             exit 1
           fi
 
-      - name: Install CocoaPods
+      - name: Setup Ruby (for Bundler)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Install Bundler and Gems (including CocoaPods)
         run: |
           cd ios
-          pod install --repo-update
+          gem install bundler
+          bundle config set --local path 'vendor/bundle'
+          bundle install --jobs 4 --retry 3
+
+      - name: Install CocoaPods via Bundler
+        run: |
+          cd ios
+          bundle exec pod install --repo-update
 
       - name: Build iOS (release, no codesign)
         env:
