@@ -2,6 +2,7 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven(url = "https://xdcobra.github.io/maven")
     }
 }
 

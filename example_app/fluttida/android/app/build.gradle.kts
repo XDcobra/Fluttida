@@ -30,6 +30,34 @@ val adsEnabled: Boolean = if (project.hasProperty("ADS_ENABLED")) {
     true
 }
 
+fun readPinnedVersion(file: java.io.File, key: String): String {
+    if (!file.exists()) {
+        throw GradleException("Missing version pinning file: ${file.absolutePath}")
+    }
+
+    val value = file.readLines()
+        .asSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .mapNotNull { line ->
+            val idx = line.indexOf('=')
+            if (idx <= 0) return@mapNotNull null
+            val k = line.substring(0, idx).trim()
+            val v = line.substring(idx + 1).trim()
+            if (k == key) v else null
+        }
+        .firstOrNull()
+
+    if (value.isNullOrBlank()) {
+        throw GradleException("Missing key '$key' in ${file.absolutePath}")
+    }
+
+    return value
+}
+
+val androidPinFile = rootProject.file("../config/android-libs.versions")
+val libcurlOpensslVersion = readPinnedVersion(androidPinFile, "libcurl_openssl_version")
+
 android {
     namespace = "com.xdcobra.fluttida"
     compileSdk = flutter.compileSdkVersion
@@ -135,10 +163,7 @@ flutter {
 }
 
 dependencies {
+    implementation("com.xdcobra.libcurl:libcurl-openssl:${libcurlOpensslVersion}@aar")
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
-}
-
-// Cronet runtime dependency (embedded). Update version as needed for your project.
-dependencies {
     implementation("org.chromium.net:cronet-embedded:141.7340.3")
 }
