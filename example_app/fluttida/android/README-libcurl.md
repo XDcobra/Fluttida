@@ -1,33 +1,32 @@
 # libcurl for Android NDK (Fluttida)
 
-To enable the native libcurl stack, provide prebuilt `libcurl.so` for the target ABIs.
+Fluttida now uses the prebuilt Maven artifact `com.xdcobra.libcurl:libcurl-openssl`.
+The old manual `jniLibs` copy flow is no longer required.
 
-## Where to place the libraries
+## Version pinning
 
-Place the shared objects under:
+The pinned Android libcurl version is defined in:
 
-- `example_app/fluttida/android/app/src/main/jniLibs/arm64-v8a/libcurl.so`
-- `example_app/fluttida/android/app/src/main/jniLibs/armeabi-v7a/libcurl.so` (optional if you only ship arm64)
-- `example_app/fluttida/android/app/src/main/jniLibs/x86_64/libcurl.so` (optional for emulator)
+- `example_app/fluttida/config/android-libs.versions`
 
-Gradle will automatically package these into the APK.
+Current key:
 
-## Where to place the curl headers
+- `libcurl_openssl_version=<version>`
 
-For compilation (C++ code includes `<curl/curl.h>`), copy the curl headers from your build output to:
+`android/app/build.gradle.kts` reads this file and resolves the AAR dependency automatically.
 
-- `example_app/fluttida/android/app/src/main/cpp/third_party/curl/include/arm64-v8a/include/curl/*.h`
-- `example_app/fluttida/android/app/src/main/cpp/third_party/curl/include/armeabi-v7a/include/curl/*.h`
-- `example_app/fluttida/android/app/src/main/cpp/third_party/curl/include/x86_64/include/curl/*.h`
+## Native libraries
 
-**Example:** If you build libcurl with the build script in `libcurl-android-prebuilt-and-buildscripts`, copy:
-```bash
-# From build output (e.g., install/Release-unstripped/<abi>/include)
-cp -r install/Release-unstripped/arm64-v8a/include \
-      example_app/fluttida/android/app/src/main/cpp/third_party/curl/include/arm64-v8a/
-```
+`libcurl.so` is pulled from Maven via the AAR and packaged by Gradle for supported ABIs.
+Do not manually copy `libcurl.so`, `libssl.so`, or `libcrypto.so` into `android/app/src/main/jniLibs`.
 
-The CMakeLists.txt uses `${ANDROID_ABI}` to select the correct headers per architecture during compilation.
+## curl headers for JNI build
+
+The C++ JNI module still compiles against vendored curl headers in:
+
+- `android/app/src/main/cpp/third_party/curl/include/...`
+
+These are treated as source headers for compile-time only. Runtime libraries come from Maven.
 
 ## TLS backend
 
@@ -45,20 +44,15 @@ libcurl+OpenSSL on Android does not automatically use the Java/Android trust sto
 
 ## Verify locally
 
-After placing the `.so` files:
+Build Android as usual:
 
 ```bash
 cd example_app/fluttida
 flutter clean
 flutter build apk --release
-adb shell ls /data/app/*/lib/* | grep curl || true
 ```
 
 Run the app and select the "Android NDK (libcurl)" stack. For TLS errors like `rc=60` (peer verification), ensure `cacert.pem` is present as described above.
-
-## CI note
-
-If you want CI builds to include libcurl, commit the `.so` files to the repository (or fetch them during the workflow). Without them, the JNI stack will return `libcurl.so not found`.
 
 ## Sources/Binaries
 
