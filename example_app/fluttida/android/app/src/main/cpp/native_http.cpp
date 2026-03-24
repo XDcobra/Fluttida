@@ -422,6 +422,8 @@ Java_com_xdcobra_fluttida_NativeHttp_nativeHttpRequest(
     const int CURLOPT_SSL_VERIFYPEER = 64;
     const int CURLOPT_SSL_VERIFYHOST = 81;
     const int CURLOPT_CAINFO = 10065; // string: path to CA bundle file
+    const int CURLOPT_SSL_CTX_FUNCTION = 20108;
+    const int CURLOPT_SSL_CTX_DATA = 10109;
 
     const int CURLINFO_RESPONSE_CODE = 2097154;
 
