@@ -57,6 +57,6 @@
 	<key>admobBannerUnitIos</key>
 	<string>$(ADMOB_BANNER_UNIT_IOS)</string>
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>$(ADMOB_APP_ID_IOS)</string>
 </dict>
 </plist>

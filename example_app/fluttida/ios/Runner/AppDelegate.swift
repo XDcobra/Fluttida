@@ -26,6 +26,15 @@ import Flutter
       if call.method == "getAdConfig" {
         let info = Bundle.main.infoDictionary
 
+        func normalizedString(_ value: Any?) -> String? {
+          guard let raw = value as? String else { return nil }
+          let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+          if trimmed.isEmpty || trimmed.hasPrefix("$(") {
+            return nil
+          }
+          return trimmed
+        }
+
         var adsEnabledBool = false
         if let v = info?["ADS_ENABLED"] as? Bool {
           adsEnabledBool = v
@@ -35,16 +44,17 @@ import Flutter
           adsEnabledBool = v.boolValue
         }
 
-        var banner: String = ""
-        if let b = info?["admobBannerUnitIos"] as? String, !b.isEmpty {
-          banner = b
-        } else if let b = info?["admobBannerUnit"] as? String, !b.isEmpty {
-          banner = b
+        let banner = normalizedString(info?["admobBannerUnitIos"])
+          ?? normalizedString(info?["admobBannerUnit"])
+
+        // If IDs are unresolved/missing, force ads off to keep runtime stable.
+        if banner == nil {
+          adsEnabledBool = false
         }
 
         result([
           "adsEnabled": adsEnabledBool,
-          "admobBannerUnitIos": banner,
+          "admobBannerUnitIos": banner ?? "",
         ])
         return
       }

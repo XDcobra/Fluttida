@@ -1,2 +1,9 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
+
+// Release/Profile defaults. Override via Runner/Secrets.xcconfig for CI/local secrets.
+ADS_ENABLED = YES
+ADMOB_APP_ID_IOS = ca-app-pub-3940256099942544~1458002511
+ADMOB_BANNER_UNIT_IOS = ca-app-pub-3940256099942544/2934735716
+#include "../Runner/Secrets.xcconfig"
 IPHONEOS_DEPLOYMENT_TARGET=13.0
