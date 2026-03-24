@@ -53,7 +53,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   cupertino_http: 94ac07f5ff090b8effa6c5e2c47871d48ab7c86c
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  FluttidaLibs: 28ae0e21295580af6fe55fecb2119123e59b07da
+  FluttidaLibs: b15c1971870584f05acf294ed566d133010d7fbb
   Google-Mobile-Ads-SDK: 4534fd2dfcd3f705c5485a6633c5188d03d4eed2
   google_mobile_ads: df3008bafbe1f2ad6862f87334e560d2f047f902
   GoogleUserMessagingPlatform: befe603da6501006420c206222acd449bba45a9c
@@ -61,6 +61,6 @@ SPEC CHECKSUMS:
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   webview_flutter_wkwebview: 8ebf4fded22593026f7dbff1fbff31ea98573c8d
 
-PODFILE CHECKSUM: 21cd9825064ac0d81d36d2cc3b0fe02f5f6e938f
+PODFILE CHECKSUM: 2970c37d8bc776af8075bb531ed1e12bb93fdaf6
 
 COCOAPODS: 1.16.2
