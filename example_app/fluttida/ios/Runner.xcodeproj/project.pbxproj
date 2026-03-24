@@ -639,15 +639,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Runner/Frameworks/OpenSSL-static/$(PLATFORM_NAME)",
-					"$(inherited)",
-				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-lssl",
-					"-lcrypto",
-				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.xdcobra.fluttida;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -674,15 +665,6 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Runner/Frameworks/OpenSSL-static/$(PLATFORM_NAME)",
-					"$(inherited)",
-				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-lssl",
-					"-lcrypto",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.xdcobra.fluttida;
 				PRODUCT_NAME = "$(TARGET_NAME)";
