@@ -77,9 +77,6 @@ fi
 rm -rf "$TARGET_XCFW_DIR"
 cp -R "$SRC_XCFW_DIR" "$TARGET_XCFW_DIR"
 
-# Remove legacy separate OpenSSL framework to enforce umbrella integration.
-rm -rf "$FRAMEWORKS_DIR/OpenSSL.xcframework"
-
 printf "%s\n" "$LIBCURL_VERSION" > "$STAMP_FILE"
 
 echo "Installed libcurl.xcframework version $LIBCURL_VERSION"

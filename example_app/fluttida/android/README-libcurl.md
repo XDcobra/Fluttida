@@ -22,11 +22,8 @@ Do not manually copy `libcurl.so`, `libssl.so`, or `libcrypto.so` into `android/
 
 ## curl headers for JNI build
 
-The C++ JNI module still compiles against vendored curl headers in:
-
-- `android/app/src/main/cpp/third_party/curl/include/...`
-
-These are treated as source headers for compile-time only. Runtime libraries come from Maven.
+The JNI implementation no longer depends on vendored curl headers under `third_party`.
+curl is loaded dynamically at runtime from the Maven AAR (`libcurl.so`) via `dlopen`/`dlsym`.
 
 ## TLS backend
 
