@@ -46,5 +46,12 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Android libraries (generated native shared objects)
+/android/app/src/main/jniLibs/**/*.so
+
+# iOS frameworks (generated/downloaded)
+/ios/Runner/Frameworks/
+/ios/Runner/Frameworks/**
+
 # FVM Version Cache
 .fvm/
