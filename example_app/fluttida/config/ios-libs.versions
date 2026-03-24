@@ -1,0 +1,6 @@
+# Fluttida iOS native library pinning
+# key=value format
+libcurl_openssl_version=8.19.0-1
+libcurl_ios_release_tag=v8.19.0-1
+libcurl_ios_zip_asset=libcurl-ios.zip
+libcurl_ios_xcframework_name=libcurl-openssl.xcframework
