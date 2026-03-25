@@ -1,0 +1,3 @@
+# Fluttida Android native library pinning
+# key=value format
+libcurl_openssl_version=8.19.0-1

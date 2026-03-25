@@ -1,2 +1,8 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+
+// Keep debug builds deterministic: ads disabled and test IDs only.
+ADS_ENABLED = NO
+ADMOB_APP_ID_IOS = ca-app-pub-3940256099942544~1458002511
+ADMOB_BANNER_UNIT_IOS = ca-app-pub-3940256099942544/2934735716
 IPHONEOS_DEPLOYMENT_TARGET=13.0

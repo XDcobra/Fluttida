@@ -16,9 +16,7 @@
 #include <cstdlib>
 #include <cctype>
 #include <errno.h>
-
-// Include curl.h for proper CURLOPT constants
-#include <curl/curl.h>
+#include "curl_constants.h"
 
 #define LOG_TAG "FluttidaNativeHttp"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -411,22 +409,6 @@ Java_com_xdcobra_fluttida_NativeHttp_nativeHttpRequest(
     }
 
     std::string resp;
-
-    // CURLOPT codes (from curl/curl.h); using literal ints to avoid including headers
-    const int CURLOPT_URL = 10002;
-    const int CURLOPT_WRITEFUNCTION = 20011;
-    const int CURLOPT_WRITEDATA = 10001;
-    const int CURLOPT_HTTPHEADER = 10023;
-    const int CURLOPT_POSTFIELDS = 10015;
-    const int CURLOPT_POSTFIELDSIZE = 60;
-    const int CURLOPT_CUSTOMREQUEST = 10036;
-    const int CURLOPT_CONNECTTIMEOUT_MS = 156;
-    const int CURLOPT_TIMEOUT_MS = 155;
-    const int CURLOPT_SSL_VERIFYPEER = 64;
-    const int CURLOPT_SSL_VERIFYHOST = 81;
-    const int CURLOPT_CAINFO = 10065; // string: path to CA bundle file
-
-    const int CURLINFO_RESPONSE_CODE = 2097154;
 
     curl_easy_setopt(curl, CURLOPT_URL, url_c);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb_fn);
