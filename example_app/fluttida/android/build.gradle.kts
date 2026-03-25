@@ -2,7 +2,11 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        maven(url = "https://xdcobra.github.io/maven")
+        maven(url = "https://xdcobra.github.io/maven") {
+            content {
+                includeGroup("com.xdcobra.libcurl")
+            }
+        }
     }
 }
 
