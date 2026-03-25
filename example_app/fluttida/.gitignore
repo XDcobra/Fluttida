@@ -50,7 +50,7 @@ app.*.map.json
 /android/app/src/main/jniLibs/**/*.so
 
 # Legacy native header vendoring path (no longer used)
-/android/app/src/main/cpp/third_party/curl/
+/android/app/src/main/cpp/third_party/
 
 # iOS frameworks (generated/downloaded)
 /ios/Runner/Frameworks/
